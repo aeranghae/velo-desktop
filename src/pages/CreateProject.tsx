@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { projectService, ProjectCreateRequestDto } from '../services/projectService';
 import SpotlightCardGroup, { SpotlightCardData } from '../components/SpotlightCardGroup';
+import GenerateButton from '../components/GenerateButton';
 
 interface CreateProjectProps {
   onGenerate: (data: any) => void;
@@ -470,15 +471,13 @@ const CreateProject: React.FC<CreateProjectProps> = ({ onGenerate }) => {
               </button>
             ) : (
               <>
-                <button onClick={() => setStep(1)} className="px-10 py-4 bg-white/5 hover:bg-white/10 border border-white/5 rounded-2xl font-bold transition-all text-gray-400">RESTART</button>
-                <button 
-                  onClick={handleGenerateProject} 
+                <GenerateButton 
+                  onClick={handleGenerateProject}
                   disabled={isGenerating}
-                  className="px-16 py-4 bg-gradient-to-br from-blue-500 via-blue-600 to-purple-600 rounded-2xl font-black text-[14px] tracking-widest text-white shadow-2xl shadow-purple-600/30 uppercase flex items-center gap-2 active:scale-95 transition-all"
                 >
-                  {isGenerating ? <RefreshCw className="animate-spin" size={14} /> : "Generate Project"}
-                </button>
-              </>
+                  {isGenerating ? "GENERATING..." : "Generate Project"}
+                </GenerateButton>
+                              </>
             )}
           </div>
         </div>
