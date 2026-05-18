@@ -45,7 +45,6 @@ const Library: React.FC<LibraryProps> = ({ onSelectProject, generatingProjects =
     
     try {
       alert(`[${projectName}] 프로젝트 소스코드 압축 다운로드를 요청합니다.`);
-      //console.log(`📡 [API 발사 예정] GET /(주소 정해지면 적기)`);
     } catch (error) {
       console.error("프로젝트 다운로드 중 에러 발생:", error);
       alert("다운로드 요청 중 오류가 발생했습니다.");
@@ -72,6 +71,7 @@ const Library: React.FC<LibraryProps> = ({ onSelectProject, generatingProjects =
   const handleProjectClick = (item: ProjectResponseDto) => {
     if (!item || !item.uuid || editingProjectId === item.uuid) return;
 
+    //제작 여부 상관없이 무조건 부모 채널로 전송하여 detail 패스로 이동
     if (onSelectProject) {
       onSelectProject(item.uuid);
     }
@@ -243,7 +243,6 @@ const Library: React.FC<LibraryProps> = ({ onSelectProject, generatingProjects =
                       ) : (
                         <div className="flex flex-col gap-1.5">
                           <h3 className="font-bold text-xl truncate relative">{displayTitle}</h3>
-                          {/*프레임워크 배지 시각화 구역 */}
                           {!isGenerating && (
                             <div className="flex">
                               <span className="px-2 py-0.5 bg-blue-500/10 border border-blue-500/20 rounded-lg text-[9px] font-black text-blue-400 uppercase tracking-wider">
@@ -255,7 +254,6 @@ const Library: React.FC<LibraryProps> = ({ onSelectProject, generatingProjects =
                       )}
                     </div>
 
-                    {/* 상태값 동적 처리 구역 (COMPLETED / FAILED / GENERATING 방어 분기) */}
                     {isGenerating ? (
                       <p className="text-xs text-blue-400 mt-2 flex items-center gap-1.5 font-bold relative tracking-tight">
                         <RefreshCw size={12} className="animate-spin" /> 

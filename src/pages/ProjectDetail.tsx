@@ -7,9 +7,11 @@ import {
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { storageService, ProjectNode } from '../services/storageService';
+import ProcessingView from './ProcessingView';
 
 interface ProjectDetailProps {
   projectUuid?: string; 
+  generatingProjects?: any;
 }
 
 // [파일 확장자 → Prism 언어 식별자 매핑]
@@ -22,71 +24,13 @@ const getLanguageFromPath = (filePath: string): string => {
   
   // 확장자별 언어 매핑 테이블
   const langMap: { [key: string]: string } = {
-    // JavaScript/TypeScript
-    'js': 'javascript',
-    'jsx': 'jsx',
-    'ts': 'typescript',
-    'tsx': 'tsx',
-    'mjs': 'javascript',
-    'cjs': 'javascript',
-    
-    // 백엔드 언어
-    'java': 'java',
-    'kt': 'kotlin',
-    'py': 'python',
-    'rb': 'ruby',
-    'go': 'go',
-    'rs': 'rust',
-    'php': 'php',
-    'cs': 'csharp',
-    'cpp': 'cpp',
-    'c': 'c',
-    'h': 'c',
-    'hpp': 'cpp',
-    
-    // 웹 마크업/스타일
-    'html': 'markup',
-    'htm': 'markup',
-    'xml': 'markup',
-    'svg': 'markup',
-    'css': 'css',
-    'scss': 'scss',
-    'sass': 'sass',
-    'less': 'less',
-    
-    // 데이터/설정 파일
-    'json': 'json',
-    'yml': 'yaml',
-    'yaml': 'yaml',
-    'toml': 'toml',
-    'ini': 'ini',
-    'env': 'bash',
-    
-    // 셸/빌드
-    'sh': 'bash',
-    'bash': 'bash',
-    'zsh': 'bash',
-    'gradle': 'groovy',
-    'groovy': 'groovy',
-    
-    // 데이터베이스
-    'sql': 'sql',
-    
-    // 문서
-    'md': 'markdown',
-    'markdown': 'markdown',
-    
-    // 기타
-    'dockerfile': 'docker',
-    'gitignore': 'bash',
+    'js': 'javascript', 'jsx': 'jsx', 'ts': 'typescript', 'tsx': 'tsx',
+    'java': 'java', 'py': 'python', 'html': 'markup', 'css': 'css',
+    'json': 'json', 'yml': 'yaml', 'yaml': 'yaml', 'sql': 'sql', 'md': 'markdown'
   };
   
-  // 확장자 없는 특수 파일명 처리
   if (!extension) {
-    const lowerName = fileName.toLowerCase();
-    if (lowerName === 'dockerfile') return 'docker';
-    if (lowerName === 'makefile') return 'makefile';
-    if (lowerName.startsWith('.git')) return 'bash';
+    if (fileName.toLowerCase() === 'dockerfile') return 'docker';
     return 'text';
   }
   
@@ -109,37 +53,36 @@ const TreeNode: React.FC<TreeNodeProps> = ({ node, depth, selectedPath, onSelect
     return (
       <button 
         onClick={() => onSelectFile(nodePath)}
-        className={`flex items-center gap-2 text-[13px] w-full text-left transition-all hover:translate-x-1 py-0.5 ${selectedPath === nodePath ? 'text-blue-400 font-bold' : 'text-gray-500 hover:text-gray-300'}`}
+        className={`flex items-center justify-between text-[13px] w-full text-left transition-all hover:translate-x-1 py-1 px-2 rounded-lg ${selectedPath === nodePath ? 'text-cyan-400 bg-cyan-500/5 font-bold' : 'text-gray-400 hover:text-gray-200'}`}
       >
-        <File size={12} className={selectedPath === nodePath ? 'text-blue-400' : 'text-gray-600'} /> 
-        {node.name}
+        <div className="flex items-center gap-2 truncate">
+          <File size={12} className={selectedPath === nodePath ? 'text-cyan-400' : 'text-gray-500'} /> 
+          <span className="truncate">{node.name}</span>
+        </div>
+        {(node as any).isNew && (
+          <span className="text-[8px] bg-cyan-500 text-black font-black px-1.5 py-0.5 rounded tracking-tighter animate-pulse scale-90">NEW</span>
+        )}
       </button>
     );
   }
 
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-1">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className={`flex items-center gap-1.5 w-full text-left transition-all hover:opacity-80 ${
+        className={`flex items-center gap-1.5 w-full text-left transition-all hover:opacity-80 py-0.5 ${
           depth === 0 
-            ? 'text-[14px] text-blue-400/80 font-black uppercase tracking-tighter' 
-            : 'text-[13px] text-blue-300/70 font-bold'
+            ? 'text-[13px] text-blue-400 font-black uppercase tracking-wider' 
+            : 'text-[12px] text-gray-400 font-bold'
         }`}
       >
-        {isOpen 
-          ? <ChevronDown size={12} className="text-blue-500/70 shrink-0" /> 
-          : <ChevronRight size={12} className="text-blue-500/70 shrink-0" />
-        }
-        {isOpen 
-          ? <FolderOpen size={14} className="fill-blue-500/20 shrink-0" /> 
-          : <Folder size={14} className="fill-blue-500/20 shrink-0" />
-        }
+        {isOpen ? <ChevronDown size={12} className="text-gray-600 shrink-0" /> : <ChevronRight size={12} className="text-gray-600 shrink-0" />}
+        {isOpen ? <FolderOpen size={13} className="text-blue-400 shrink-0" /> : <Folder size={13} className="text-blue-500 shrink-0" />}
         <span className="truncate">{node.name}</span>
       </button>
 
       {isOpen && node.children && node.children.length > 0 && (
-        <div className="pl-4 space-y-1.5 border-l border-l-white/5 ml-1.5">
+        <div className="pl-3.5 space-y-1 border-l border-white/5 ml-1.5">
           {node.children.map((childNode, idx) => (
             <TreeNode 
               key={`${childNode.name}-${idx}`}
@@ -155,34 +98,31 @@ const TreeNode: React.FC<TreeNodeProps> = ({ node, depth, selectedPath, onSelect
   );
 };
 
-const ProjectDetail: React.FC<ProjectDetailProps> = ({ projectUuid }) => {
+const ProjectDetail: React.FC<ProjectDetailProps> = ({ projectUuid, generatingProjects = {} }) => {
+  const [viewMode, setViewMode] = useState<'code' | 'build'>('code');
+  const [isTreeRefreshing, setIsTreeRefreshing] = useState(false);
+
   const [activeTab, setActiveTab] = useState<'code' | 'info'>('code');
-  
   const [selectedPath, setSelectedPath] = useState<string>('');
-  
   const [modifyPrompt, setModifyPrompt] = useState('');
   const [isModifying, setIsModifying] = useState(false);
 
   const [serverFiles, setServerFiles] = useState<ProjectNode[]>([]);
   const [isTreeLoading, setIsTreeLoading] = useState<boolean>(false);
-  
-  const [fileContent, setFileContent] = useState<string>('// 좌측에서 파일을 선택해 주세요.');
+  const [fileContent, setFileContent] = useState<string>('// 좌측 탐색기에서 소스코드를 골라보세요.');
   const [isFileLoading, setIsFileLoading] = useState<boolean>(false);
   const [fileError, setFileError] = useState<string>('');
   
   const fileContentCacheRef = useRef<{ [path: string]: string }>({});
-  
   const fetchedUuidRef = useRef<string | null>(null);
+
+  const isDummyProject = projectUuid === 'design-guide-dummy-uuid';
+  const currentProgressInfo = projectUuid ? generatingProjects[projectUuid] : null;
 
   const parseFlatToTree = (flatList: any[]) => {
     const root: ProjectNode[] = [];
     const lookup: { [key: string]: ProjectNode } = {};
-
-    const sortedList = [...flatList].sort((a, b) => {
-      const aDepth = a.path.split('/').length;
-      const bDepth = b.path.split('/').length;
-      return aDepth - bDepth;
-    });
+    const sortedList = [...flatList].sort((a, b) => a.path.split('/').length - b.path.split('/').length);
 
     sortedList.forEach((node) => {
       const parts = node.path.split('/');
@@ -193,7 +133,6 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projectUuid }) => {
         type: node.type === 'DIR' ? 'DIRECTORY' : 'FILE',
         children: node.type === 'DIR' ? [] : undefined
       };
-
       (newNode as any).path = node.path;
       lookup[node.path] = newNode;
 
@@ -208,73 +147,102 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projectUuid }) => {
         }
       }
     });
-
     return root;
   };
 
-  useEffect(() => {
-    const fetchProjectTree = async () => {
-      if (!projectUuid || 
-          projectUuid.trim() === "" || 
-          projectUuid === "undefined" || 
-          projectUuid.length < 30) {
-        console.log("[대기] 유효한 프로젝트 UUID가 확보되지 않아 API 요청을 차단했습니다.");
-        return; 
-      }
+  const loadInitialDummyTree = () => {
+    const initialFlat = [
+      { path: 'src', type: 'DIR' },
+      { path: 'src/main', type: 'DIR' },
+      { path: 'pom.xml', type: 'FILE' },
+      { path: 'LICENSE.md', type: 'FILE' }
+    ];
+    setServerFiles(parseFlatToTree(initialFlat));
+    setSelectedPath('pom.xml');
+    setFileContent(`<?xml version="1.0" encoding="UTF-8"?>\n<project>\n    <modelVersion>4.0.0</modelVersion>\n    <artifactId>senior-dog-care-hub</artifactId>\n</project>`);
+  };
 
-      if (fetchedUuidRef.current === projectUuid) {
-        console.log(`[중복 차단] UUID ${projectUuid} 는 이미 조회 완료. 재요청 스킵.`);
-        return;
+  const handleRefreshTreeAction = () => {
+    setIsTreeRefreshing(true);
+    setTimeout(() => {
+      setIsTreeRefreshing(false);
+      if (isDummyProject) {
+        const updatedFlat = [
+          { path: 'src', type: 'DIR' },
+          { path: 'src/main', type: 'DIR' },
+          { path: 'src/main/java', type: 'DIR' },
+          { path: 'src/main/java/MainApplication.java', type: 'FILE', isNew: true },
+          { path: 'pom.xml', type: 'FILE' },
+          { path: 'LICENSE.md', type: 'FILE' }
+        ];
+        const parsed = parseFlatToTree(updatedFlat);
+        if (parsed[0]?.children?.[0]?.children?.[0]) {
+          (parsed[0].children[0].children[0] as any).isNew = true;
+        }
+        setServerFiles(parsed);
+        alert("[백엔드 폴링 완료] 실시간 빌드 중 생성 완료된 파일 스트림이 트리에 동적 동기화되었습니다!");
+      } else {
+        alert("원격지 저장소 트리가 갱신되었습니다.");
       }
+    }, 800);
+  };
+
+  useEffect(() => {
+    if (isDummyProject) {
+      loadInitialDummyTree();
+      return;
+    }
+
+    const fetchProjectTree = async () => {
+      if (!projectUuid || projectUuid.trim() === "" || projectUuid === "undefined" || projectUuid.length < 30) return;
+      if (fetchedUuidRef.current === projectUuid) return;
       fetchedUuidRef.current = projectUuid;
       
       setIsTreeLoading(true);
       try {
-        console.log(`[API 발사] 검증 완료된 UUID로 트리를 조회합니다: ${projectUuid}`);
         const data = await storageService.getProjectTree(projectUuid);
-        
         if (data && Array.isArray(data)) {
           const parsedTree = parseFlatToTree(data);
           setServerFiles(parsedTree);
           
-          const findFirstFilePath = (nodes: ProjectNode[]): string | null => {
+          const findFirstFile = (nodes: ProjectNode[]): string | null => {
             for (const n of nodes) {
               if (n.type === 'FILE') return (n as any).path || n.name;
               if (n.children && n.children.length > 0) {
-                const found = findFirstFilePath(n.children);
+                const found = findFirstFile(n.children);
                 if (found) return found;
               }
             }
             return null;
           };
-          
-          const firstFilePath = findFirstFilePath(parsedTree);
-          if (firstFilePath) {
-            setSelectedPath(firstFilePath);
-          }
-        } else {
-          setServerFiles([]);
+          const first = findFirstFile(parsedTree);
+          if (first) setSelectedPath(first);
         }
       } catch (error) {
-        console.error("화면에 프로젝트 트리를 바인딩하지 못했습니다:", error);
-        fetchedUuidRef.current = null;
+        console.error(error);
         setServerFiles([]);
       } finally {
         setIsTreeLoading(false);
       }
     };
-
     fetchProjectTree();
-  }, [projectUuid]);
+  }, [projectUuid, isDummyProject]);
 
   useEffect(() => {
-    const fetchFileContent = async () => {
-      if (!projectUuid || !selectedPath) {
-        return;
+    if (isDummyProject) {
+      if (selectedPath === 'src/main/java/MainApplication.java') {
+        setFileContent(`package com.ae.autostudio;\n\nimport org.springframework.boot.SpringApplication;\nimport org.springframework.boot.autoconfigure.SpringBootApplication;\n\n@SpringBootApplication\npublic class MainApplication {\n    public static void main(String[] args) {\n        SpringApplication.run(MainApplication.class, args);\n    }\n}`);
+      } else if (selectedPath === 'LICENSE.md') {
+        setFileContent(`MIT License\n\nCopyright (x) 2026 Seol Hyo-ju`);
+      } else if (selectedPath === 'pom.xml') {
+        setFileContent(`<?xml version="1.0" encoding="UTF-8"?>\n<project>\n    <modelVersion>4.0.0</modelVersion>\n    <artifactId>senior-dog-care-hub</artifactId>\n</project>`);
       }
-      
+      return;
+    }
+
+    const fetchFileContent = async () => {
+      if (!projectUuid || !selectedPath) return;
       if (fileContentCacheRef.current[selectedPath] !== undefined) {
-        console.log(`[캐시 히트] ${selectedPath} - 메모리에서 즉시 로드`);
         setFileContent(fileContentCacheRef.current[selectedPath]);
         setFileError('');
         return;
@@ -282,31 +250,19 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projectUuid }) => {
       
       setIsFileLoading(true);
       setFileError('');
-      
       try {
-        console.log(`[파일 조회] ${selectedPath}`);
         const content = await storageService.getFileContent(projectUuid, selectedPath);
-        
         fileContentCacheRef.current[selectedPath] = content;
         setFileContent(content);
-        
       } catch (error: any) {
-        console.error(`파일 내용 로드 실패: ${selectedPath}`, error);
-        setFileError(
-          error.response?.status === 404 
-            ? '파일을 찾을 수 없습니다.'
-            : error.response?.status === 403
-            ? '이 파일에 접근할 권한이 없습니다.'
-            : '파일 내용을 불러오는 중 오류가 발생했습니다.'
-        );
+        setFileError('파일 내용을 불러오는 중 오류가 발생했습니다.');
         setFileContent('');
       } finally {
         setIsFileLoading(false);
       }
     };
-
     fetchFileContent();
-  }, [projectUuid, selectedPath]);
+  }, [projectUuid, selectedPath, isDummyProject]);
 
   useEffect(() => {
     fileContentCacheRef.current = {};
@@ -322,13 +278,10 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projectUuid }) => {
   };
 
   const displayFileName = selectedPath ? selectedPath.split('/').pop() : '';
-  
-  //[현재 파일의 언어 식별자] 하이라이팅 적용을 위한 언어 결정
   const currentLanguage = getLanguageFromPath(selectedPath);
 
   return (
-    <div className="flex flex-col h-full bg-[#0D0D0E] text-white overflow-hidden animate-in fade-in duration-700">
-      {/* --- 상단 헤더 섹션 --- */}
+    <div className="flex flex-col h-full w-full bg-[#0D0D0E] text-white overflow-hidden rounded-[36px] border border-white/5 shadow-2xl animate-in fade-in duration-700">
       <header className="flex items-center justify-between px-10 py-5 border-b border-white/5 bg-white/[0.02] shrink-0">
         <div className="flex items-center gap-5">
           <div className="p-3 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-2xl shadow-lg shadow-blue-900/20">
@@ -336,8 +289,12 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projectUuid }) => {
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-lg font-black italic tracking-tighter uppercase">시니어 견주 건강관리 앱</h2>
-              <span className="text-[9px] bg-emerald-500/10 text-emerald-500 px-2 py-0.5 rounded border border-emerald-500/20 font-bold uppercase tracking-widest">Live Build</span>
+              <h2 className="text-lg font-black italic tracking-tighter uppercase">
+                {isDummyProject ? "[분석 모드] AI 아키텍처 코딩 룸" : "시니어 견주 건강관리 앱"}
+              </h2>
+              <span className="text-[9px] bg-emerald-500/10 text-emerald-500 px-2 py-0.5 rounded border border-emerald-500/20 font-bold uppercase tracking-widest">
+                {isDummyProject ? "Integrated View" : "Live Build"}
+              </span>
             </div>
             <div className="flex items-center gap-3 mt-1 text-[10px] text-gray-500 font-bold uppercase tracking-widest">
               <span className="flex items-center gap-1"><Globe size={10}/> 개발: 웹</span>
@@ -346,39 +303,63 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projectUuid }) => {
           </div>
         </div>
 
-        <div className="flex bg-black/40 p-1 rounded-2xl border border-white/10">
+        {/* 탭 제어판 */}
+        <div className="flex bg-black/50 p-1.5 rounded-2xl border border-white/10 shadow-inner">
           <button 
-            onClick={() => setActiveTab('code')}
-            className={`px-6 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${activeTab === 'code' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}
+            onClick={() => { setViewMode('code'); setActiveTab('code'); }}
+            className={`px-5 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${viewMode === 'code' && activeTab === 'code' ? 'bg-[#242426] text-white border border-white/5 shadow-lg' : 'text-gray-500 hover:text-gray-300'}`}
           >
-            <FileCode size={16} /> 코드
+            <FileCode size={15} /> 소스코드 편집기
           </button>
           <button 
-            onClick={() => setActiveTab('info')}
-            className={`px-6 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${activeTab === 'info' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}
+            onClick={() => { setViewMode('code'); setActiveTab('info'); }}
+            className={`px-5 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${viewMode === 'code' && activeTab === 'info' ? 'bg-[#242426] text-white border border-white/5 shadow-lg' : 'text-gray-500 hover:text-gray-300'}`}
           >
-            <Info size={16} /> 정보
+            <Info size={15} /> 프로젝트 스펙
+          </button>
+          <button 
+            onClick={() => setViewMode('build')}
+            className={`px-5 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${viewMode === 'build' ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20 animate-none' : 'text-gray-500 hover:text-cyan-400 font-bold'}`}
+          >
+            <Terminal size={15} /> 실시간 생성 로그
+            {currentProgressInfo && <span className="w-1.5 h-1.5 bg-cyan-400 rounded-full animate-ping ml-1" />}
           </button>
         </div>
       </header>
 
-      {/* --- 메인 작업 영역 --- */}
-      <div className="flex-1 min-h-0 relative">
-        {activeTab === 'code' ? (
+      <div className="flex-1 min-h-0 relative bg-[#121214]">
+        {viewMode === 'build' ? (
+          <div className="h-full animate-in zoom-in-95 duration-300">
+            <ProcessingView 
+              isGenerating={isDummyProject} 
+              onComplete={() => setViewMode('code')} 
+            />
+          </div>
+        ) : activeTab === 'code' ? (
           <div className="flex h-full animate-in slide-in-from-right-4 duration-500">
-            {/* 좌측: 파일 트리 (Explorer) */}
-            <aside className="w-72 border-r border-white/5 bg-black/30 p-8 overflow-y-auto custom-scrollbar">
-              <p className="text-[10px] font-black text-gray-600 uppercase tracking-[0.2em] mb-8 flex items-center gap-2">
-                <ChevronRight size={12} className="text-blue-500" /> Project Explorer
-              </p>
+            {/* 좌측 탐색기 구역 */}
+            <aside className="w-72 border-r border-white/5 bg-black/30 p-6 flex flex-col overflow-hidden">
+              <div className="flex justify-between items-center mb-6 shrink-0 border-b border-white/5 pb-2">
+                <p className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] flex items-center gap-1.5">
+                  <ChevronRight size={12} className="text-blue-500" /> Project Explorer
+                </p>
+                {/*동적 새로고침 버튼 */}
+                <button
+                  onClick={handleRefreshTreeAction}
+                  title="백엔드 폴링 데이터 강제 갱신"
+                  className="p-1.5 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white border border-white/5 transition-all active:scale-95 cursor-pointer"
+                >
+                  <RefreshCw size={12} className={isTreeRefreshing ? "animate-spin text-cyan-400" : ""} />
+                </button>
+              </div>
               
-              {isTreeLoading ? (
-                <div className="text-xs text-gray-500 font-mono flex items-center gap-2">
-                  <RefreshCw size={12} className="animate-spin text-blue-500" /> 트리 구조 동기화 중...
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {serverFiles.map((item, idx) => (
+              <div className="flex-grow overflow-y-auto custom-scrollbar space-y-3 pr-1">
+                {isTreeLoading ? (
+                  <div className="text-xs text-gray-500 font-mono flex items-center gap-2">
+                    <RefreshCw size={12} className="animate-spin text-blue-500" /> 구조 동기화 중...
+                  </div>
+                ) : (
+                  serverFiles.map((item, idx) => (
                     <TreeNode 
                       key={`${item.name}-${idx}`}
                       node={item}
@@ -386,12 +367,12 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projectUuid }) => {
                       selectedPath={selectedPath}
                       onSelectFile={setSelectedPath}
                     />
-                  ))}
-                </div>
-              )}
+                  ))
+                )}
+              </div>
             </aside>
 
-            {/* 중앙: 코드 편집기 */}
+            {/* 중앙 편집기 본체 */}
             <main className="flex-1 flex flex-col min-w-0 bg-[#0D0D0E] relative shadow-2xl">
               <div className="flex items-center justify-between px-8 py-3 bg-white/[0.03] border-b border-white/5">
                 <div className="flex items-center gap-2">
@@ -399,15 +380,12 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projectUuid }) => {
                   <span className="text-[11px] font-mono font-bold text-gray-400 tracking-tight">
                     {displayFileName || 'No file selected'}
                   </span>
-                  {/* [언어 뱃지] 현재 파일의 언어를 우측에 살짝 표시 */}
                   {selectedPath && currentLanguage !== 'text' && (
                     <span className="text-[9px] bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded border border-blue-500/20 font-bold uppercase tracking-widest ml-2">
                       {currentLanguage}
                     </span>
                   )}
-                  {isFileLoading && (
-                    <RefreshCw size={11} className="animate-spin text-blue-400 ml-1" />
-                  )}
+                  {isFileLoading && <RefreshCw size={11} className="animate-spin text-blue-400 ml-1" />}
                 </div>
                 <div className="flex gap-1.5">
                   <div className="w-2.5 h-2.5 rounded-full bg-red-500/20 border border-red-500/30" />
@@ -417,7 +395,6 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projectUuid }) => {
               </div>
               
               <div className="flex-1 overflow-y-auto custom-scrollbar bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]">
-                {/*[에러 / 로딩 / 정상 표시] 3가지 상태에 따라 분기 렌더링 */}
                 {fileError ? (
                   <div className="p-10">
                     <div className="flex items-center gap-3 text-red-400 bg-red-500/5 border border-red-500/20 rounded-2xl p-6">
@@ -434,33 +411,18 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projectUuid }) => {
                     <span className="text-xs">파일 내용을 가져오는 중...</span>
                   </div>
                 ) : (
-                  /*[구문 강조 적용] react-syntax-highlighter로 컬러 코딩 */
                   <SyntaxHighlighter
                     language={currentLanguage}
                     style={vscDarkPlus}
                     showLineNumbers={true}
                     wrapLongLines={false}
                     customStyle={{
-                      background: 'transparent',
-                      margin: 0,
-                      padding: '2.5rem',
-                      fontSize: '0.9rem',          // 글자 살짝 더 크게
-                      lineHeight: '1.7',           // 줄 간격 넉넉하게
-                      fontFamily: 'inherit',
-                      textShadow: 'none',          // 텍스트 그림자 제거로 또렷함
+                      background: 'transparent', margin: 0, padding: '2.5rem',
+                      fontSize: '0.9rem', lineHeight: '1.7', fontFamily: 'inherit', textShadow: 'none',
                     }}
                     lineNumberStyle={{
-                      color: '#52525b',            // 줄번호 조금 더 밝게
-                      minWidth: '3em',             // 줄번호 영역 살짝 넓게
-                      paddingRight: '1.5em',
-                      userSelect: 'none',
-                      borderRight: '1px solid rgba(255,255,255,0.05)',  // 줄번호 우측 구분선
-                      marginRight: '1em',
-                    }}
-                    codeTagProps={{
-                      style: {
-                        fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace',
-                      }
+                      color: '#52525b', minWidth: '3em', paddingRight: '1.5em',
+                      userSelect: 'none', borderRight: '1px solid rgba(255,255,255,0.05)', marginRight: '1em',
                     }}
                   >
                     {fileContent || "// Empty File"}
@@ -468,7 +430,6 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projectUuid }) => {
                 )}
               </div>
 
-              {/* 하단 AI 수정 프롬프트 바 */}
               <div className="p-8 bg-[#131315] border-t border-white/5 relative">
                 <div className="max-w-5xl mx-auto relative group">
                   <div className="absolute -top-5 left-5 flex items-center gap-2">
@@ -480,37 +441,28 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projectUuid }) => {
                       <textarea 
                         value={modifyPrompt}
                         onChange={(e) => setModifyPrompt(e.target.value)}
-                        onKeyDown={(e) => {
-                            if (e.key === 'Enter' && !e.shiftKey) { 
-                            e.preventDefault();
-                            handleModifyRequest();
-                            }
-                        }}
+                        onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleModifyRequest(); } }}
                         rows={1}
                         className="w-full bg-transparent py-4 pl-12 pr-40 outline-none text-sm text-gray-200 placeholder:text-gray-600 transition-all resize-none min-h-[56px] max-h-[200px] custom-scrollbar"
                         placeholder="수정하고 싶은 내용을 입력하세요."
-                        />
-
-                        <div className="absolute left-5 bottom-6">
+                      />
+                      <div className="absolute left-5 bottom-6">
                         <Cpu size={22} className={`${isModifying ? 'text-purple-500' : 'text-gray-600 group-focus-within:text-blue-500'} transition-colors duration-500`} />
-                        </div>
-
-                        <button 
+                      </div>
+                      <button 
                         onClick={handleModifyRequest}
                         disabled={!modifyPrompt.trim() || isModifying}
-                        className={`absolute right-3 bottom-3 px-7 py-3 rounded-2xl font-black text-[10px] tracking-widest transition-all
-                            ${modifyPrompt.trim() && !isModifying ? 'bg-blue-600 text-white shadow-xl shadow-blue-900/30' : 'bg-white/5 text-gray-700'}`}
-                        >
+                        className={`absolute right-3 bottom-3 px-7 py-3 rounded-2xl font-black text-[10px] tracking-widest transition-all ${modifyPrompt.trim() && !isModifying ? 'bg-blue-600 text-white shadow-xl shadow-blue-900/30' : 'bg-white/5 text-gray-700'}`}
+                      >
                         {isModifying ? <RefreshCw size={14} className="animate-spin" /> : 'REQUEST MODIFY'}
-                        </button>
+                      </button>
                     </div>
-                    </div>
+                  </div>
                 </div>
-                </div>
+              </div>
             </main>
           </div>
         ) : (
-          /* 프로젝트 명세 섹션 (SPEC) */
           <div className="h-full p-16 max-w-6xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="grid grid-cols-3 gap-12">
               <div className="col-span-2 space-y-12">

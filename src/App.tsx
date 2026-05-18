@@ -6,7 +6,6 @@ import CreateProject from './pages/CreateProject';
 import Library from './pages/Library';
 import Settings from './pages/Settings';
 import LoginPage from './pages/Login';
-import ProcessingView from './pages/ProcessingView';
 import ProjectDetail from './pages/ProjectDetail';
 import LandingPage from './pages/LandingPage';
 import './assets/index.css';
@@ -87,9 +86,6 @@ function App() {
       case 'library':
         setBgConfig({ orb1: 'bg-emerald-600/15', orb2: 'bg-teal-600/15', pos1: 'top-[-5%] right-[-5%]', pos2: 'bottom-[-5%] left-[-5%]' });
         break;
-      case 'processing':
-        setBgConfig({ orb1: 'bg-indigo-900/30', orb2: 'bg-blue-900/30', pos1: 'top-[50%] left-[50%]', pos2: 'bottom-[50%] right-[50%]' });
-        break;
     }
   }, [activeMenu]);
 
@@ -105,14 +101,10 @@ function App() {
     setActiveMenu('library');
   };
 
-  // 라이브러리 카드 분기 핸들러
+  // 라이브러리 카드 분기 핸들러 (개편: 어떤 카드든 무조건 상세화면 detail로 유도)
   const handleSelectProject = (uuid: string) => {
     setActiveProjectUuid(uuid);
-    if (uuid === 'design-guide-dummy-uuid') {
-      setActiveMenu('processing');
-    } else {
-      setActiveMenu('detail');
-    }
+    setActiveMenu('detail');
   };
 
   const handleEntryComplete = () => {
@@ -139,7 +131,6 @@ function App() {
         {showAuthModal && (
           <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md animate-in fade-in duration-300">
             <div className="relative">
-              {/* LoginPage 내부에 있는 원래 닫기 버튼이 onClose를 실행할 때 모달도 함께 닫히도록 함수 연결 */}
               <LoginPage onClose={() => {
                 handleEntryComplete();
                 setShowAuthModal(false);
@@ -171,8 +162,12 @@ function App() {
           />
         )}
         
-        {activeMenu === 'processing' && <ProcessingView onComplete={() => setActiveMenu('library')} />}
-        {activeMenu === 'detail' && <ProjectDetail projectUuid={activeProjectUuid} />}
+        {activeMenu === 'detail' && (
+          <ProjectDetail 
+            projectUuid={activeProjectUuid} 
+            generatingProjects={generatingProjects}
+          />
+        )}
         {activeMenu === 'settings' && <Settings />}
       </main>
     </div>
