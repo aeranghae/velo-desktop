@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   Folder, FolderOpen, File, Cpu, Sparkles, RefreshCw, 
   Code2, Info, FileCode, Terminal, Globe, ChevronRight, ChevronDown,
-  AlertCircle
+  AlertCircle, Edit2, Check, X
 } from 'lucide-react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
@@ -107,6 +107,10 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projectUuid, generatingPr
   const [modifyPrompt, setModifyPrompt] = useState('');
   const [isModifying, setIsModifying] = useState(false);
 
+  //Description 수정용 상태 
+  const [isEditingDescription, setIsEditingDescription] = useState(false);
+  const [descriptionInput, setDescriptionInput] = useState('시니어 반려동물의 건강 상태를 실시간으로 기록하고, 주기적인 복약 및 사료 급여 스케줄을 가족 구성원들이 상호 동기화하여 케어할 수 있는 스마트 헬스케어 동반자 시스템입니다.');
+
   const [serverFiles, setServerFiles] = useState<ProjectNode[]>([]);
   const [isTreeLoading, setIsTreeLoading] = useState<boolean>(false);
   const [fileContent, setFileContent] = useState<string>('// 좌측 탐색기에서 소스코드를 골라보세요.');
@@ -185,6 +189,31 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projectUuid, generatingPr
         alert("원격지 저장소 트리가 갱신되었습니다.");
       }
     }, 800);
+  };
+
+  //Description 저장 처리 핸들러 
+  const handleSaveDescription = async () => {
+    if (!descriptionInput.trim()) {
+      alert("프로젝트 설명을 입력해주세요.");
+      return;
+    }
+    
+    try {
+      setIsTreeLoading(true); // 로딩 토글 모션
+      
+      /** [참고용 백엔드 API 명세 연동 가이드라인 주석]
+       * await axios.put(`(주소 넣기))`, {
+       * description: descriptionInput
+       * }, { headers: { Authorization: `Bearer ${token}` } });
+       */
+      
+      setIsEditingDescription(false);
+      alert("프로젝트의 상세 명세(Description)가 성공적으로 업데이트되었습니다.");
+    } catch (err) {
+      alert("설명 업데이트 중 오류가 발생했습니다.");
+    } finally {
+      setIsTreeLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -337,16 +366,14 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projectUuid, generatingPr
           </div>
         ) : activeTab === 'code' ? (
           <div className="flex h-full animate-in slide-in-from-right-4 duration-500">
-            {/* 좌측 탐색기 구역 */}
+            {/* 좌측 탐색기 */}
             <aside className="w-72 border-r border-white/5 bg-black/30 p-6 flex flex-col overflow-hidden">
               <div className="flex justify-between items-center mb-6 shrink-0 border-b border-white/5 pb-2">
                 <p className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] flex items-center gap-1.5">
                   <ChevronRight size={12} className="text-blue-500" /> Project Explorer
                 </p>
-                {/*동적 새로고침 버튼 */}
                 <button
                   onClick={handleRefreshTreeAction}
-                  title="백엔드 폴링 데이터 강제 갱신"
                   className="p-1.5 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white border border-white/5 transition-all active:scale-95 cursor-pointer"
                 >
                   <RefreshCw size={12} className={isTreeRefreshing ? "animate-spin text-cyan-400" : ""} />
@@ -463,13 +490,69 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projectUuid, generatingPr
             </main>
           </div>
         ) : (
-          <div className="h-full p-16 max-w-6xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <div className="grid grid-cols-3 gap-12">
-              <div className="col-span-2 space-y-12">
-                <section className="space-y-5 border-l-4 border-blue-600 pl-8">
+          /*프로젝트 명세 섹션 (Description 에디터 기능) */
+          <div className="h-full p-16 max-w-6xl mx-auto overflow-y-auto custom-scrollbar animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="grid grid-cols-3 gap-12 items-start">
+              <div className="col-span-2 space-y-10">
+                
+                {/* 1. 타이틀 구역 */}
+                <section className="space-y-4 border-l-4 border-blue-600 pl-8">
                   <h3 className="text-[11px] font-black text-blue-500 uppercase tracking-[0.4em]">Core Specification</h3>
                   <p className="text-3xl font-bold leading-tight tracking-tighter">"시니어 반려견 건강 관리 돌봄 허브"</p>
                 </section>
+
+                {/* 2.Description (사용자 인터랙티브 입력창 패치 구역) */}
+                <section className="bg-white/[0.02] border border-white/5 rounded-[32px] p-8 space-y-4 shadow-xl">
+                  <div className="flex justify-between items-center border-b border-white/5 pb-3">
+                    <span className="text-[10px] text-gray-500 font-black uppercase tracking-widest">Project Description</span>
+                    
+                    {!isEditingDescription && (
+                      <button 
+                        onClick={() => setIsEditingDescription(true)}
+                        className="flex items-center gap-1.5 text-[11px] text-blue-400 hover:text-blue-300 font-bold transition-all px-3 py-1.5 bg-blue-500/5 rounded-xl border border-blue-500/10 active:scale-95 cursor-pointer"
+                      >
+                        <Edit2 size={11} /> 설명 수정
+                      </button>
+                    )}
+                  </div>
+
+                  {isEditingDescription ? (
+                    /* 편집 모드 상태 */
+                    <div className="space-y-4 animate-in fade-in duration-300">
+                      <textarea
+                        value={descriptionInput}
+                        onChange={(e) => setDescriptionInput(e.target.value)}
+                        rows={4}
+                        className="w-full bg-black/30 border border-blue-500/50 rounded-2xl p-4 text-sm text-gray-200 focus:outline-none focus:border-blue-500 font-medium leading-relaxed custom-scrollbar"
+                        placeholder="프로젝트의 상세 설명을 고쳐보세요."
+                      />
+                      <div className="flex justify-end gap-2">
+                        <button 
+                          onClick={() => setIsEditingDescription(false)}
+                          className="flex items-center gap-1 px-4 py-2 bg-white/5 hover:bg-white/10 rounded-xl text-xs font-bold text-gray-400 transition-all cursor-pointer"
+                        >
+                          <X size={13} /> 취소
+                        </button>
+                        <button 
+                          onClick={handleSaveDescription}
+                          className="flex items-center gap-1 px-5 py-2 bg-blue-600 hover:bg-blue-500 rounded-xl text-xs font-black text-white shadow-lg shadow-blue-600/20 transition-all cursor-pointer"
+                        >
+                          <Check size={13} /> 저장하기
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    /* 일반 뷰 모드 상태 */
+                    <p 
+                      onClick={() => setIsEditingDescription(true)}
+                      title="클릭하여 설명 바로 수정하기"
+                      className="text-sm text-gray-400 leading-relaxed font-medium cursor-pointer hover:text-gray-300 transition-colors p-1 rounded-lg hover:bg-white/[0.01]"
+                    >
+                      {descriptionInput}
+                    </p>
+                  )}
+                </section>
+
                 <div className="grid grid-cols-2 gap-8">
                   <div className="bg-white/5 p-8 rounded-[40px] border border-white/5 shadow-inner">
                     <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mb-3">Target Stack</p>
@@ -481,14 +564,35 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projectUuid, generatingPr
                   </div>
                 </div>
               </div>
+
+              {/* 우측 빌드 인포 구역 */}
               <div className="bg-blue-600/5 border border-blue-500/20 rounded-[48px] p-10 flex flex-col gap-8 shadow-2xl">
                  <h4 className="text-xs font-black text-blue-400 uppercase tracking-widest flex items-center gap-3">
                    <Terminal size={18} /> Build Info
                  </h4>
                  <div className="space-y-6 text-xs">
-                    <div className="flex justify-between border-b border-white/5 pb-4"><span className="text-gray-500">BUILD VERSION</span><span className="font-mono">v1.0.4-stable</span></div>
-                    <div className="flex justify-between border-b border-white/5 pb-4"><span className="text-gray-500">STATUS</span><span className="text-emerald-500 font-bold uppercase">Deployed</span></div>
-                    <div className="flex justify-between items-center"><span className="text-gray-500 font-bold">TOTAL SOURCE</span><span className="text-blue-400 underline underline-offset-4 font-black">24 Files</span></div>
+                    <div className="flex justify-between border-b border-white/5 pb-4">
+                      <span className="text-gray-500">BUILD VERSION</span>
+                      <span className="font-mono">{isDummyProject ? "v1.0.4-stable" : "v1.0.0-live"}</span>
+                    </div>
+                    <div className="flex justify-between border-b border-white/5 pb-4">
+                      <span className="text-gray-500">STATUS</span>
+                      <span>
+                        {isDummyProject ? (
+                          <span className="text-emerald-500 font-bold uppercase">Deployed</span>
+                        ) : currentProgressInfo && currentProgressInfo.progress < 100 ? (
+                          <span className="text-cyan-400 font-bold uppercase animate-pulse">Generating ({currentProgressInfo.progress}%)</span>
+                        ) : (
+                          <span className="text-emerald-500 font-bold uppercase">Active & Deployed</span>
+                        )}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-500 font-bold">TOTAL SOURCE</span>
+                      <span className="text-blue-400 underline underline-offset-4 font-black">
+                        {isDummyProject ? "24 Files" : `${serverFiles.length > 0 ? serverFiles.length : '동기화 중...'} Files`}
+                      </span>
+                    </div>
                  </div>
               </div>
             </div>
