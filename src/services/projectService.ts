@@ -15,6 +15,8 @@ export interface ProjectResponseDto {
   projectName: string;
   uuid: string;
   model: string;
+  framework: string
+  status: string;
   createdAt: string;
   lastModified: string;
   size: number;

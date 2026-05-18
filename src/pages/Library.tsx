@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Folder, MoreVertical, Calendar, Download, RefreshCw, CheckCircle2, Trash2, Edit2 } from 'lucide-react';
+import { Search, Folder, MoreVertical, Calendar, Download, RefreshCw, CheckCircle2, Trash2, Edit2, Cpu, DownloadCloud, AlertCircle } from 'lucide-react';
 import { projectService, ProjectResponseDto } from '../services/projectService';
+import { ProjectProgress } from '../App';
 
 interface LibraryProps {
-  setActiveMenu: (menu: string) => void;
   onSelectProject?: (uuid: string) => void;
+  generatingProjects?: { [uuid: string]: ProjectProgress }; 
 }
 
-const Library: React.FC<LibraryProps> = ({ setActiveMenu, onSelectProject }) => {
+const Library: React.FC<LibraryProps> = ({ onSelectProject, generatingProjects = {} }) => {
   const [projectsList, setProjectsList] = useState<ProjectResponseDto[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   
@@ -35,13 +36,45 @@ const Library: React.FC<LibraryProps> = ({ setActiveMenu, onSelectProject }) => 
     fetchProjects();
   }, []);
 
+  //프로젝트 ZIP 다운로드 실행 트리거
+  const handleDownloadProject = async (uuid: string, projectName: string) => {
+    if (uuid === 'design-guide-dummy-uuid') {
+      alert("가이드용 더미 프로젝트는 다운로드할 수 없습니다.\n실제 완성된 프로젝트를 다운로드해 주세요.");
+      return;
+    }
+    
+    try {
+      alert(`[${projectName}] 프로젝트 소스코드 압축 다운로드를 요청합니다.`);
+      //console.log(`📡 [API 발사 예정] GET /(주소 정해지면 적기)`);
+    } catch (error) {
+      console.error("프로젝트 다운로드 중 에러 발생:", error);
+      alert("다운로드 요청 중 오류가 발생했습니다.");
+    }
+  };
+
+  //확장된 ProjectResponseDto 스펙에 맞춰 framework와 status 기본값 강제 매핑
+  const buildDisplayList = (): ProjectResponseDto[] => {
+    const dummyGeneratingCards: ProjectResponseDto[] = Object.values(generatingProjects).map(p => ({
+      uuid: p.uuid, 
+      projectName: `[API 설계용] 아키텍처 실시간 제작 프로세스 분석 창`,
+      model: 'gemini-1.5-pro',
+      framework: 'SPRING BOOT',
+      status: 'GENERATING',    
+      createdAt: new Date().toISOString(),
+      lastModified: new Date().toISOString(),
+      size: 0,
+      fileCount: 0,
+    }));
+
+    return [...dummyGeneratingCards, ...projectsList];
+  };
+
   const handleProjectClick = (item: ProjectResponseDto) => {
     if (!item || !item.uuid || editingProjectId === item.uuid) return;
 
     if (onSelectProject) {
       onSelectProject(item.uuid);
     }
-    setActiveMenu('detail');
   };
 
   const handleStartEditUI = (item: ProjectResponseDto) => {
@@ -59,17 +92,10 @@ const Library: React.FC<LibraryProps> = ({ setActiveMenu, onSelectProject }) => 
     }
 
     try {
-      setIsLoading(true); // 로딩 스피너 켜기
-      
-      // 1. PATCH 요청 전송
+      setIsLoading(true); 
       await projectService.updateProjectName(editingProjectId, editTitleInput);
-      
-      // 2. 수정 모드 종료
       setEditingProjectId(null);
-      
-      // 3.이름이 변경되었으므로 프로젝트 목록을 다시 서버에서 불러와 동기화(갱신)
       await fetchProjects();
-      
     } catch (error) {
       alert("이름 변경 중 오류가 발생했습니다. 다시 시도해 주세요.");
     } finally {
@@ -77,29 +103,23 @@ const Library: React.FC<LibraryProps> = ({ setActiveMenu, onSelectProject }) => 
     }
   };
 
- const handleConfirmDeleteUI = async () => {
-  //안전장치: 현재 선택된 삭제 대상 프로젝트나 uuid가 없으면 실행 안 함
-  if (!projectToDelete || !projectToDelete.uuid) return;
+  const handleConfirmDeleteUI = async () => {
+    if (!projectToDelete || !projectToDelete.uuid) return;
 
-  try {
-    setIsLoading(true); // 로딩 스피너 켜기
+    try {
+      setIsLoading(true); 
+      await projectService.deleteProject(projectToDelete.uuid);
+      setProjectToDelete(null);
+      setActiveMenuId(null);
+      await fetchProjects();
+    } catch (error) {
+      alert("프로젝트 삭제 중 오류가 발생했습니다. 다시 시도해 주세요.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-    // 1. 서버에 해당 uuid 삭제 요청 전송
-    await projectService.deleteProject(projectToDelete.uuid);
-
-    // 2. 모달창 닫기 및 활성화된 더보기 메뉴 초기화
-    setProjectToDelete(null);
-    setActiveMenuId(null);
-
-    // 3. 삭제가 완료되었으므로 프로젝트 목록을 서버에서 새로 받아와 갱신
-    await fetchProjects();
-
-  } catch (error) {
-    alert("프로젝트 삭제 중 오류가 발생했습니다. 다시 시도해 주세요.");
-  } finally {
-    setIsLoading(false); // 로딩 꺼주기
-  }
-};
+  const displayList = buildDisplayList();
 
   return (
     <div className="flex flex-col h-full overflow-hidden relative text-white">
@@ -119,98 +139,171 @@ const Library: React.FC<LibraryProps> = ({ setActiveMenu, onSelectProject }) => 
       </header>
 
       <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar relative z-10">
-        {isLoading ? (
+        {isLoading && displayList.length === 1 ? ( 
           <div className="flex flex-col items-center justify-center py-32 gap-4">
             <RefreshCw className="animate-spin text-blue-500" size={40} />
             <p className="text-sm text-gray-400 font-medium">프로젝트 보관함을 불러오는 중...</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-10">
-            {projectsList && projectsList.length > 0 ? (
-              projectsList.map((item) => {
-                //만약 item 자체가 null이거나 uuid가 없으면 오류를 내지 않고 스킵
+            {displayList && displayList.length > 0 ? (
+              displayList.map((item) => {
                 if (!item || !item.uuid) return null;
 
                 const currentUuid = item.uuid;
                 const displayTitle = item.projectName || "이름 없는 프로젝트";
+                
+                const isGenerating = currentUuid === 'design-guide-dummy-uuid';
+                const progress = generatingProjects[currentUuid];
 
                 return (
                   <div 
                     key={currentUuid} 
                     onClick={() => handleProjectClick(item)}
-                    className="relative bg-[#1A1A1C] border border-white/5 hover:border-white/20 rounded-[32px] p-6 hover:-translate-y-1 transition-all cursor-pointer group shadow-xl"
+                    className={`relative bg-[#1A1A1C] border transition-all cursor-pointer group shadow-xl rounded-[32px] p-6 hover:-translate-y-1
+                      ${isGenerating 
+                        ? 'border-blue-500/50 hover:border-blue-400 shadow-blue-600/10' 
+                        : 'border-white/5 hover:border-white/20'
+                      }`}
                   >
-                    <div className="flex justify-between items-start mb-6">
-                      <div className="w-12 h-12 rounded-2xl flex items-center justify-center transition-all bg-white/5 text-blue-400 group-hover:bg-blue-500 group-hover:text-white">
-                        <Folder size={24} />
+                    {isGenerating && (
+                      <div className="absolute inset-0 rounded-[32px] pointer-events-none overflow-hidden">
+                        <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 to-purple-500/10 animate-pulse" />
                       </div>
-                      
-                      <div className="relative">
-                        <button 
-                          onClick={(e) => {
-                            e.stopPropagation(); 
-                            setActiveMenuId(activeMenuId === currentUuid ? null : currentUuid);
-                          }}
-                          className="p-1 rounded-lg hover:bg-white/5 text-gray-600 hover:text-white transition-all"
-                        >
-                          <MoreVertical size={20} />
-                        </button>
-
-                        {activeMenuId === currentUuid && (
-                          <>
-                            <div className="fixed inset-0 z-40 cursor-default" onClick={(e) => { e.stopPropagation(); setActiveMenuId(null); }} />
-                            <div className="absolute right-0 mt-2 w-36 bg-[#242426] border border-white/10 rounded-2xl shadow-2xl p-1.5 z-50">
-                              <button 
-                                onClick={(e) => { e.stopPropagation(); handleStartEditUI(item); }}
-                                className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold text-gray-300 hover:bg-white/5 rounded-xl transition-all mb-0.5"
-                              >
-                                <Edit2 size={13} /> 이름 변경
-                              </button>
-                              <button 
-                                onClick={(e) => { e.stopPropagation(); setProjectToDelete(item); }}
-                                className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold text-red-400 hover:bg-red-500/10 rounded-xl transition-all"
-                              >
-                                <Trash2 size={13} /> 프로젝트 삭제
-                              </button>
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                    
-                    {/* 이름 변경 렌더링 구역 */}
-                    {editingProjectId === currentUuid ? (
-                      <div className="flex gap-2 mb-1" onClick={(e) => e.stopPropagation()}>
-                        <input 
-                          type="text"
-                          value={editTitleInput}
-                          onChange={(e) => setEditTitleInput(e.target.value)}
-                          onKeyDown={(e) => e.key === 'Enter' && handleSaveTitleUI()}
-                          autoFocus
-                          className="flex-1 min-w-0 bg-black/30 border border-blue-500 rounded-xl px-3 py-1.5 text-base text-white focus:outline-none font-bold"
-                        />
-                        <button onClick={handleSaveTitleUI} className="bg-blue-600 hover:bg-blue-500 text-xs font-bold px-3 py-1.5 rounded-xl transition-all shrink-0">저장</button>
-                        <button onClick={() => setEditingProjectId(null)} className="bg-white/5 hover:bg-white/10 border border-white/5 text-xs font-bold px-3 py-1.5 rounded-xl transition-all text-gray-400 shrink-0">취소</button>
-                      </div>
-                    ) : (
-                      <h3 className="font-bold text-xl mb-1 truncate">{displayTitle}</h3>
                     )}
 
-                    <p className="text-xs text-gray-500 mt-2 flex items-center gap-1">
-                      <CheckCircle2 size={12} className="text-emerald-500" /> Generation Complete
-                    </p>
+                    <div className="flex justify-between items-start mb-6 relative">
+                      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all
+                        ${isGenerating 
+                          ? 'bg-blue-500/20 text-blue-400' 
+                          : 'bg-white/5 text-blue-400 group-hover:bg-blue-500 group-hover:text-white'
+                        }`}
+                      >
+                        {isGenerating 
+                          ? <Cpu size={24} className="animate-spin" style={{ animationDuration: '3s' }} /> 
+                          : <Folder size={24} />
+                        }
+                      </div>
+                      
+                      {!isGenerating && (
+                        <div className="relative">
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation(); 
+                              setActiveMenuId(activeMenuId === currentUuid ? null : currentUuid);
+                            }}
+                            className="p-1 rounded-lg hover:bg-white/5 text-gray-600 hover:text-white transition-all"
+                          >
+                            <MoreVertical size={20} />
+                          </button>
+
+                          {activeMenuId === currentUuid && (
+                            <>
+                              <div className="fixed inset-0 z-40 cursor-default" onClick={(e) => { e.stopPropagation(); setActiveMenuId(null); }} />
+                              <div className="absolute right-0 mt-2 w-36 bg-[#242426] border border-white/10 rounded-2xl shadow-2xl p-1.5 z-50">
+                                <button 
+                                  onClick={(e) => { e.stopPropagation(); handleStartEditUI(item); }}
+                                  className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold text-gray-300 hover:bg-white/5 rounded-xl transition-all mb-0.5"
+                                >
+                                  <Edit2 size={13} /> 이름 변경
+                                </button>
+                                <button 
+                                  onClick={(e) => { e.stopPropagation(); setActiveMenuId(null); handleDownloadProject(currentUuid, displayTitle); }}
+                                  className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold text-blue-400 hover:bg-blue-500/10 rounded-xl transition-all mb-0.5"
+                                >
+                                  <DownloadCloud size={13} /> 소스 다운로드
+                                </button>
+                                <button 
+                                  onClick={(e) => { e.stopPropagation(); setProjectToDelete(item); }}
+                                  className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold text-red-400 hover:bg-red-500/10 rounded-xl transition-all"
+                                >
+                                  <Trash2 size={13} /> 프로젝트 삭제
+                                </button>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
                     
-                    {/* 하단 메타데이터 구역 (안전성 검사 보완) */}
-                    <div className="flex items-center justify-between text-[10px] text-gray-500 pt-6 mt-6 border-t border-white/5 font-bold uppercase tracking-tighter">
+                    <div className="mt-2 mb-1">
+                      {editingProjectId === currentUuid ? (
+                        <div className="flex gap-2 relative" onClick={(e) => e.stopPropagation()}>
+                          <input 
+                            type="text"
+                            value={editTitleInput}
+                            onChange={(e) => setEditTitleInput(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && handleSaveTitleUI()}
+                            autoFocus
+                            className="flex-1 min-w-0 bg-black/30 border border-blue-500 rounded-xl px-3 py-1.5 text-base text-white focus:outline-none font-bold"
+                          />
+                          <button onClick={handleSaveTitleUI} className="bg-blue-600 hover:bg-blue-500 text-xs font-bold px-3 py-1.5 rounded-xl transition-all shrink-0">저장</button>
+                          <button onClick={() => setEditingProjectId(null)} className="bg-white/5 hover:bg-white/10 border border-white/5 text-xs font-bold px-3 py-1.5 rounded-xl transition-all text-gray-400 shrink-0">취소</button>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col gap-1.5">
+                          <h3 className="font-bold text-xl truncate relative">{displayTitle}</h3>
+                          {/*프레임워크 배지 시각화 구역 */}
+                          {!isGenerating && (
+                            <div className="flex">
+                              <span className="px-2 py-0.5 bg-blue-500/10 border border-blue-500/20 rounded-lg text-[9px] font-black text-blue-400 uppercase tracking-wider">
+                                {item.framework || 'SPRING BOOT'}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* 상태값 동적 처리 구역 (COMPLETED / FAILED / GENERATING 방어 분기) */}
+                    {isGenerating ? (
+                      <p className="text-xs text-blue-400 mt-2 flex items-center gap-1.5 font-bold relative tracking-tight">
+                        <RefreshCw size={12} className="animate-spin" /> 
+                        Generating... {progress?.progress || 45}%
+                      </p>
+                    ) : (
+                      <p className="text-xs text-gray-500 mt-2 flex items-center gap-1 relative">
+                        {item.status === 'FAILED' ? (
+                          <><AlertCircle size={12} className="text-red-500" /> Generation Failed</>
+                        ) : (
+                          <><CheckCircle2 size={12} className="text-emerald-500" /> Generation Complete</>
+                        )}
+                      </p>
+                    )}
+                    
+                    {isGenerating && (
+                      <div className="mt-4 mb-1 relative">
+                        <div className="h-1 bg-white/5 rounded-full overflow-hidden">
+                          <div className="h-full bg-gradient-to-r from-blue-500 to-purple-500 rounded-full w-[45%] relative" />
+                        </div>
+                        <p className="text-[10px] text-gray-500 mt-2 italic font-medium truncate">
+                          {progress?.currentStep || '준비 중...'}
+                        </p>
+                      </div>
+                    )}
+                    
+                    <div className="flex items-center justify-between text-[10px] text-gray-500 pt-6 mt-6 border-t border-white/5 font-bold uppercase tracking-tighter relative">
                       <div className="flex items-center gap-1.5">
                         <Calendar size={12} /> 
-                        {item.createdAt && typeof item.createdAt === 'string' 
-                          ? item.createdAt.substring(0, 10) 
-                          : '0000-00-00'}
+                        {isGenerating ? 'BUILDING' : (item.createdAt && typeof item.createdAt === 'string' ? item.createdAt.substring(0, 10) : '2026-05-18')}
                       </div>
-                      <div className="flex items-center gap-1.5">
-                        <Download size={12} /> {item.fileCount || 0} files
-                      </div>
+                      
+                      {isGenerating ? (
+                        <div className="flex items-center gap-1.5 text-gray-600">
+                          <Download size={12} /> {item.fileCount || 0} files
+                        </div>
+                      ) : (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation(); 
+                            handleDownloadProject(currentUuid, displayTitle);
+                          }}
+                          className="flex items-center gap-1.5 text-blue-400 hover:text-blue-300 bg-blue-500/10 hover:bg-blue-500/20 px-2.5 py-1 rounded-xl border border-blue-500/20 transition-all active:scale-95 cursor-pointer"
+                        >
+                          <Download size={12} className="animate-bounce" style={{ animationDuration: '2s' }} /> 
+                          <span>Download ZIP</span>
+                        </button>
+                      )}
                     </div>
                   </div>
                 );
@@ -225,7 +318,6 @@ const Library: React.FC<LibraryProps> = ({ setActiveMenu, onSelectProject }) => 
         )}
       </div>
 
-      {/* 삭제 확인 팝업 모달 */}
       {projectToDelete && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[110] text-white">
           <div className="bg-[#242426] border border-white/10 w-full max-w-sm rounded-[32px] p-6 shadow-2xl text-center">

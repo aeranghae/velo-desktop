@@ -11,6 +11,17 @@ import ProjectDetail from './pages/ProjectDetail';
 import LandingPage from './pages/LandingPage';
 import './assets/index.css';
 
+// 백엔드 폴링 설계 규격에 맞춘 진행 상태 타입 정의
+export interface ProjectProgress {
+  uuid: string;
+  status: 'generating' | 'completed' | 'failed';
+  progress: number;                    
+  currentStep: string;                  
+  completedSteps: string[];            
+  estimatedSecondsRemaining: number;   
+  startedAt: number;                   
+}
+
 function App() {
   const [activeMenu, setActiveMenu] = useState('dashboard');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -18,14 +29,21 @@ function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [showAuthModal, setShowAuthModal] = useState(false);
 
-  //동적 연동을 위해 현재 선택된 프로젝트의 UUID를 보관할 상태 주머니 추가
+  // 동적 연동을 위해 현재 선택된 프로젝트의 UUID를 보관할 상태 주머니 추가
   const [activeProjectUuid, setActiveProjectUuid] = useState<string>('');
 
-  // 라이브러리에서 관리할 프로젝트 리스트 상태
-  const [projects, setProjects] = useState([
-    { id: 'p1', title: '사내 업무 자동화', status: 'completed', progress: 100, date: '2024.03.15', items: 12 },
-    { id: 'p2', title: '쇼핑몰 기본 템플릿', status: 'completed', progress: 100, date: '2024.03.10', items: 5 },
-  ]);
+  //외부 키와 내부 필드의 uuid를 'design-guide-dummy-uuid'로 일치
+  const [generatingProjects] = useState<{ [uuid: string]: ProjectProgress }>({
+    'design-guide-dummy-uuid': {
+      uuid: 'design-guide-dummy-uuid',
+      status: 'generating',
+      progress: 45, //언제든 UI 요소(퍼센트, 로그 위치)를 볼 수 있게 45% 상시 가동 상태 유지
+      currentStep: '라이선스 공장 가동 및 LICENSE.md 매핑 중...',
+      completedSteps: ['프로젝트 폴더 구조 생성', '기본 도메인 아키텍처 설계 명세 수립'],
+      estimatedSecondsRemaining: 25,
+      startedAt: Date.now() - 30000,
+    }
+  });
 
   const [bgConfig, setBgConfig] = useState({
     orb1: 'bg-blue-600/20', orb2: 'bg-purple-600/20',
@@ -77,31 +95,24 @@ function App() {
 
   // 프로젝트 생성 핸들러
   const handleGenerate = (newProjectData: any) => {
-  const newId = `p${Date.now()}`;
-  const newProject = {
-    id: newId,
-    title: newProjectData.projectName || '새로운 프로젝트',
-    status: 'processing',
-    progress: 0,
-    date: new Date().toLocaleDateString(),
-    items: 0
+    const realUuid = newProjectData?.uuid;
+    if (!realUuid) {
+      alert("프로젝트 생성 오류: UUID를 정상적으로 수령하지 못했습니다.");
+      return;
+    }
+
+    setActiveProjectUuid(realUuid);
+    setActiveMenu('library');
   };
 
-    // 1. 리스트에 추가
-    setProjects([newProject, ...projects]);
-    // 2. 라이브러리 화면으로 이동
-    setActiveMenu('library');
-
-    //시뮬레이션: 5초 뒤에 해당 프로젝트의 상태를 'completed'로 변경(디자인 테스트를 위한 임시용)
-  setTimeout(() => {
-    setProjects(currentProjects => 
-      currentProjects.map(p => 
-        p.id === newId 
-          ? { ...p, status: 'completed', progress: 100, items: 15 } 
-          : p
-      )
-    );
-  }, 5000); // 5000ms = 5초
+  // 라이브러리 카드 분기 핸들러
+  const handleSelectProject = (uuid: string) => {
+    setActiveProjectUuid(uuid);
+    if (uuid === 'design-guide-dummy-uuid') {
+      setActiveMenu('processing');
+    } else {
+      setActiveMenu('detail');
+    }
   };
 
   const handleEntryComplete = () => {
@@ -116,7 +127,7 @@ function App() {
 
   if (isLoading) return <div className="h-screen w-full bg-[#1C1C1E]" />;
 
-  // 3. 비로그인 및 비게스트 상태일 때 3D 메인 랜딩 페이지 표출
+  // 비로그인 및 비게스트 상태일 때 3D 메인 랜딩 페이지 표출
   if (!isLoggedIn && !isGuest) {
     return (
       <div className="w-full h-screen bg-[#1C1C1E] text-white relative font-sans overflow-hidden select-none">
@@ -152,9 +163,14 @@ function App() {
       <main className="flex-1 p-8 flex flex-col relative pt-12 h-screen overflow-hidden z-10 animate-in slide-in-from-left-4 duration-1000">
         {activeMenu === 'dashboard' && <Dashboard setActiveMenu={setActiveMenu} />}
         {activeMenu === 'create' && <CreateProject onGenerate={handleGenerate} />}
+        
         {activeMenu === 'library' && (
-          <Library setActiveMenu={setActiveMenu} onSelectProject={(uuid) => setActiveProjectUuid(uuid)} />
+          <Library 
+            onSelectProject={handleSelectProject} 
+            generatingProjects={generatingProjects}
+          />
         )}
+        
         {activeMenu === 'processing' && <ProcessingView onComplete={() => setActiveMenu('library')} />}
         {activeMenu === 'detail' && <ProjectDetail projectUuid={activeProjectUuid} />}
         {activeMenu === 'settings' && <Settings />}
