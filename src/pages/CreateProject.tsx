@@ -47,13 +47,20 @@ const CreateProject: React.FC<CreateProjectProps> = ({ onGenerate }) => {
     if (!formData.finalAnalysis) return alert("요구사항 분석을 먼저 완료해주세요!");
 
     setIsGenerating(true);
+    
+    let mappedLicense = formData.license.toUpperCase();
+    if (mappedLicense === 'APACHE 2.0') mappedLicense = 'APACHE-2.0';
+    if (mappedLicense === 'GPL 3.0') mappedLicense = 'GPL-3.0';
+    if (mappedLicense === 'BSD 2-CLAUSE') mappedLicense = 'BSD-2-CLAUSE';
+    if (mappedLicense === 'BSD 3-CLAUSE') mappedLicense = 'BSD-3-CLAUSE';
+    if (mappedLicense === 'NONE (라이선스 없음)') mappedLicense = 'NONE';
 
     //DTO 규격 매핑
     const requestDto: ProjectCreateRequestDto = {
       projectName: formData.projectName || "SpringBoot_Test",
       framework: "spring-boot", 
       language: "Java",
-      license: formData.license,
+      license: mappedLicense,
       model: "gemini-1.5-pro", // 협의된 모델명
       prompt: formData.prompt
     };
@@ -344,38 +351,44 @@ const CreateProject: React.FC<CreateProjectProps> = ({ onGenerate }) => {
           </div>
         );
 
-  return (
-    <div className="flex flex-col h-full animate-in fade-in slide-in-from-right-8 duration-500">
-      <div className="mb-10 text-center">
-        <h3 className="text-[11px] font-black text-emerald-400 uppercase tracking-[0.4em] mb-2">AI Recommended Frameworks</h3>
-        <p className="text-gray-400 text-xs italic font-medium">AI가 추천하는 핵심 프레임워크 리스트입니다.</p>
-      </div>
-      
-      {/*[스포트라이트 카드 그룹 적용] */}
-      <div className="flex-1 flex items-center justify-center max-w-5xl mx-auto w-full">
-        <SpotlightCardGroup cards={stackCards} />
-      </div>
-
-      <div className="mt-10 bg-emerald-500/5 border border-emerald-500/10 rounded-3xl p-6 flex items-center gap-4 max-w-5xl mx-auto w-full">
-        <div className="p-2 bg-emerald-500/20 rounded-lg text-emerald-400"><Info size={10}/></div>
-        <p className="text-[13px] text-gray-400 leading-relaxed font-medium">위 조합은 프로젝트의 기획 의도와 데이터 흐름에 최적화된 프레임워크입니다.</p>
-      </div>
-    </div>
-  );
-
       case 3:
+        const licenseList = [
+          'MIT', 
+          'Apache 2.0', 
+          'GPL 3.0', 
+          'BSD 2-Clause', 
+          'BSD 3-Clause', 
+          'ISC', 
+          'None (라이선스 없음)'
+        ];
+
         return (
           <div className="flex gap-8 h-full animate-in fade-in slide-in-from-right-8 duration-500">
-            <div className="flex-1 space-y-4">
-              <h3 className="text-[10px] font-bold text-orange-400 uppercase tracking-widest">License Policy</h3>
-              {['MIT', 'Apache 2.0', 'GPL 3.0'].map(lic => (
-                <button key={lic} onClick={() => setFormData({...formData, license: lic})} className={`w-full p-6 rounded-3xl border transition-all flex justify-between items-center ${formData.license === lic ? 'bg-orange-600/15 border-orange-500 shadow-lg' : 'bg-white/5 border-white/10'}`}>
-                  <span className="font-bold text-sm">{lic} License</span>
-                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${formData.license === lic ? 'border-orange-500' : 'border-white/20'}`}>{formData.license === lic && <div className="w-2.5 h-2.5 bg-orange-500 rounded-full" />}</div>
+            <div className="flex-1 space-y-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+              <h3 className="text-[10px] font-bold text-orange-400 uppercase tracking-widest sticky top-0 bg-[#242426] pb-2 z-10">License Policy</h3>
+              {licenseList.map(lic => (
+                <button 
+                  key={lic} 
+                  onClick={() => setFormData({...formData, license: lic})} 
+                  className={`w-full p-6 rounded-3xl border transition-all flex justify-between items-center ${formData.license === lic ? 'bg-orange-600/15 border-orange-500 shadow-lg' : 'bg-white/5 border-white/10'}`}
+                >
+                  <span className="font-bold text-sm">{lic} {lic.includes('None') ? '' : 'License'}</span>
+                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${formData.license === lic ? 'border-orange-500' : 'border-white/20'}`}>
+                    {formData.license === lic && <div className="w-2.5 h-2.5 bg-orange-500 rounded-full" />}
+                  </div>
                 </button>
               ))}
             </div>
-            <div className="w-80 bg-orange-600/5 border border-orange-500/20 rounded-[32px] p-6"><h3 className="text-sm font-bold flex items-center gap-2 mb-4"><ShieldCheck size={18} className="text-orange-400" /> License Detail</h3><p className="text-xs text-gray-400 leading-relaxed">오픈소스 프로젝트로서의 법적 권한을 설정합니다. {formData.license} 라이선스는 상업적 사용에 우호적입니다.</p></div>
+            <div className="w-80 bg-orange-600/5 border border-orange-500/20 rounded-[32px] p-6 shrink-0">
+              <h3 className="text-sm font-bold flex items-center gap-2 mb-4"><ShieldCheck size={18} className="text-orange-400" /> License Detail</h3>
+              <p className="text-xs text-gray-400 leading-relaxed mb-4">
+                오픈소스 프로젝트로서의 법적 권한을 설정합니다.
+              </p>
+              <div className="p-4 bg-orange-500/5 border border-orange-500/10 rounded-2xl text-[11px] text-gray-500 leading-relaxed">
+                현재 선택: <strong className="text-orange-400 font-black">{formData.license}</strong>
+                <p className="mt-2">이 설정은 백엔드의 라이선스 공장 인프라와 100% 맵핑되어 동기화됩니다.</p>
+              </div>
+            </div>
           </div>
         );
 
@@ -477,7 +490,7 @@ const CreateProject: React.FC<CreateProjectProps> = ({ onGenerate }) => {
                 >
                   {isGenerating ? "GENERATING..." : "Generate Project"}
                 </GenerateButton>
-                              </>
+              </>
             )}
           </div>
         </div>
