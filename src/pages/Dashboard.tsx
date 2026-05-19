@@ -1,31 +1,81 @@
-import React from 'react';
-import { Code, Clock, ChevronRight, Layout, Cpu, BookOpenText } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Code, Clock, ChevronRight, Layout, Cpu, BookOpenText, RefreshCw } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
+import API from '../services'; 
+import { FrameworkStats, FRAMEWORK_META } from '../services/statistics';
 
 interface DashboardProps {
   setActiveMenu: React.Dispatch<React.SetStateAction<string>>;
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ setActiveMenu }) => {
-  // 통계 데이터
+  // 백엔드 통계 데이터
+  const [apiStats, setApiStats] = useState<FrameworkStats>({
+    totalProjectCount: 0,
+    frameworkCounts: {}
+  });
+  
+  // 데이터 동기화 감지용 로딩 스위치
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+
+  // 컴포넌트 마운트 시 기술 스택 분포 통계 API 호출
+  useEffect(() => {
+    const fetchStatistics = async () => {
+      try {
+        setIsLoading(true);
+        const response = await API.get('/api/storage/projects/framework/statistics');
+        if (response.data) {
+          setApiStats(response.data);
+        }
+      } catch (error) {
+        console.error('기술 스택 통계 데이터 로드 실패:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchStatistics();
+  }, []);
+
+  // 백엔드 맵 데이터를 Recharts 차트 전용 배열 포맷으로 변환
+  const techStackData = Object.entries(apiStats.frameworkCounts)
+    .map(([key, value]) => {
+      const meta = FRAMEWORK_META[key] || { name: key, color: '#6b7280' };
+      return {
+        name: meta.name,
+        value: value,
+        color: meta.color
+      };
+    })
+    //[정렬 패치]사용 비율이 제일 높은 스택이 배열 0번째(차트 중앙 타겟)로 오도록 내림차순 정렬
+    .sort((a, b) => b.value - a.value); 
+
+  // 프로젝트가 0개여서 통계 정보가 비어있을 때 차트 레이아웃 깨짐을 막는 기본 홀더 데이터
+  const isEmpty = techStackData.length === 0;
+  const chartData = isEmpty ? [{ name: '프로젝트 없음', value: 1, color: 'rgba(255,255,255,0.05)' }] : techStackData;
+
+  // 통계 카드 데이터 (전체 프로젝트 카운트에 API 동적 연동)
   const stats = [
-    { label: '전체 프로젝트', value: '12', icon: <Layout size={18} />, color: 'text-blue-400' },
+    { label: '전체 프로젝트', value: String(apiStats.totalProjectCount), icon: <Layout size={18} />, color: 'text-blue-400' },
     { label: '시스템 상태', value: '정상', icon: <Cpu size={18} />, color: 'text-green-400' },
   ];
 
-  // 기술 스택 데이터
-  const techStackData = [
-    { name: 'Node.js', value: 10, color: '#8b5cf6' },
-    { name: 'Python', value: 15, color: '#f59e0b' },
-    { name: 'React', value: 45, color: '#3b82f6' },
-    { name: 'Spring Boot', value: 30, color: '#10b981' },
-  ];
-
+  // 기존 최근 프로젝트 목록
   const recentProjects = [
     { id: 1, name: '지능형 이커머스 플랫폼', tech: 'React, Spring Boot', date: '2시간 전' },
     { id: 2, name: 'AI 이미지 분석 엔진', tech: 'Python, FastAPI', date: '어제' },
     { id: 3, name: '사내 관리자 대시보드', tech: 'React, Node.js', date: '3일 전' },
   ];
+
+  // 데이터 패치 시간 동안 구동될 프로페셔널 로딩 인디케이터 스크린
+  if (isLoading && apiStats.totalProjectCount === 0) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center h-full gap-4 bg-[#1C1C1E] rounded-[32px]">
+        <RefreshCw className="animate-spin text-blue-500" size={36} />
+        <p className="text-xs text-gray-500 font-mono tracking-wider">LOADING METRICS STREAM...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden animate-in fade-in duration-700 select-none">
@@ -64,34 +114,40 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveMenu }) => {
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie 
-                  data={techStackData} 
+                  data={chartData} 
                   cx="50%" cy="50%" 
                   innerRadius={35} 
                   outerRadius={48} 
-                  paddingAngle={5} 
+                  paddingAngle={isEmpty ? 0 : 5} 
                   dataKey="value" 
                   cornerRadius={6}
                 >
-                  {techStackData.map((entry, index) => (
+                  {chartData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />
                   ))}
                 </Pie>
-                <Tooltip 
-                  contentStyle={{ background: '#1C1C1E', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', fontSize: '10px' }}
-                />
-                <Legend 
-                  layout="vertical" 
-                  align="right" 
-                  verticalAlign="middle" 
-                  iconType="circle" 
-                  iconSize={8} 
-                  wrapperStyle={{ fontSize: '11px', color: '#94a3b8', paddingLeft: '30px' }} 
-                />
+                {!isEmpty && (
+                  <Tooltip 
+                    contentStyle={{ background: '#1C1C1E', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', fontSize: '10px' }}
+                  />
+                )}
+                {!isEmpty && (
+                  <Legend 
+                    layout="vertical" 
+                    align="right" 
+                    verticalAlign="middle" 
+                    iconType="circle" 
+                    iconSize={8} 
+                    wrapperStyle={{ fontSize: '11px', color: '#94a3b8', paddingLeft: '30px' }} 
+                  />
+                )}
               </PieChart>
             </ResponsiveContainer>
-            {/* 차트 중앙 텍스트 */}
+            {/* 차트 중앙 핵심 스택 안내 텍스트 */}
             <div className="absolute top-1/2 left-[39%] transform -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none">
-                <p className="text-[11px] font-black text-blue-400">React</p>
+                <p className="text-[10px] font-black text-purple-400 uppercase tracking-tight">
+                  {techStackData && techStackData.length > 0 ? techStackData[0].name : 'NONE'}
+                </p>
             </div>
           </div>
         </div>
