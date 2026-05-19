@@ -48,6 +48,24 @@ const CreateProject: React.FC<CreateProjectProps> = ({ onGenerate }) => {
     license: 'MIT',
   });
 
+  // 실시간 가이드 연동용 라이선스별 상세 설명 데이터
+  const licenseGuideTexts: { [key: string]: string } = {
+    'MIT': '가장 직관적이고 제약이 없는 오픈소스 양식입니다. 누구나 자유롭게 코드를 복제, 수정, 배포, 상업적 이용을 할 수 있으며 소스코드 공개 의무도 존재하지 않습니다. 원저작권 고지 조항만 유지하면 모든 행위가 법적으로 허용됩니다.',
+    'Apache 2.0': 'MIT의 장점에 더해 특허권 라이선스 허용 및 특허 침해 소송에 대한 방어 조항이 명시되어 있습니다. 기업 환경 및 대규모 협업 프로젝트에서 법적 안전장치로 매우 선호하는 강력하고 안전한 계약 규격입니다.',
+    'GPL 3.0': '강한 전염성을 가진 강력한 카피레프트(Copyleft) 라이선스입니다. 이 코드를 수정하거나 결합하여 배포하는 파생 소프트웨어는 상업적 목적이라 하더라도 무조건 전체 소스코드를 대중에게 투명하게 무상 공개해야 합니다.',
+    'BSD 2-Clause': '수정과 배포가 극도로 자유로운 미니멀한 규격입니다. 소스코드 공개 의무가 전혀 없으며, 소프트웨어를 재배포할 때 원 저작권자가 명시한 저작권 고지문과 면책조항만 코드 내에 누락 없이 포함시키면 됩니다.',
+    'None': '오픈소스 규칙을 배포 규격에 명시하지 않은 독점적 저작권 상태입니다. 타인이 본 소스코드를 무단 복제, 배포, 변경하는 모든 행위가 법적으로 전면 제한되며 오직 작성자 본인에게만 독점권이 부여됩니다.'
+  };
+
+  //라이선스별 권한 데이터 매핑
+  const licenseSpecs: { [key: string]: { allow: string[]; restrict: string[] } } = {
+    'MIT': { allow: ['상업적 이용 가능', '코드 수정 및 배포', '비공개 프로젝트 적용'], restrict: ['원저작권 고지 유지 필수'] },
+    'Apache 2.0': { allow: ['상업적 이용 가능', '코드 수정 및 배포', '특허 라이선스 전면 허용'], restrict: ['수정 파일 변경 고지 필수'] },
+    'GPL 3.0': { allow: ['상업적 이용 가능', '복제 및 배포 가능'], restrict: ['파생 코드 전체 공개 필수', '동일 라이선스 강제'] },
+    'BSD 2-Clause': { allow: ['상업적 이용 가능', '코드 수정 및 배포', '독점 소프트웨어 결합'], restrict: ['저작권 및 면책고지 유지'] },
+    'None': { allow: ['개인적 열람 및 확인'], restrict: ['무단 복제/배포 금지', '상업적 활용 불가', '파생 저작물 작성 제한'] }
+  };
+
   //백엔드 POST 요청 핸들러
   const handleGenerateProject = async () => {
     if (!formData.finalAnalysis) return alert("요구사항 분석을 먼저 완료해주세요!");
@@ -91,8 +109,7 @@ const CreateProject: React.FC<CreateProjectProps> = ({ onGenerate }) => {
     'React': '가장 대중적인 UI 라이브러리입니다. 풍부한 생태계와 컴포넌트 재사용성이 강점입니다.',
     'Next.js': 'React 기반 프레임워크로, 서버 사이드 렌더링(SSR)과 SEO 최적화에 특화되어 있습니다.',
     'Spring Boot': '안정적이고 확장성이 뛰어난 Java 기반 프레임워크입니다. 복잡한 비즈니스 로직 처리에 좋습니다.',
-    'Node.js': 'JavaScript를 사용하여 빠른 개발 속도와 높은 확장성을 가진 서버 환경을 제공합니다.',
-    'React Native': '하나의 코드로 iOS와 Android 앱을 동시에 개발할 수 있는 모바일 프레임워크입니다.'
+    'FastAPI': 'Python 기반의 현대적이고 빠른 웹 프레임워크로 비동기 처리에 강력합니다.'
   };
 
   const handleAnalyze = async () => {
@@ -271,7 +288,6 @@ const CreateProject: React.FC<CreateProjectProps> = ({ onGenerate }) => {
         );
 
       case 2:
-        // 🟢 [원본 유지]: 전달해주신 원본 case 2 레이아웃 스타일 100% 원형 보존
         const current = formData.finalAnalysis;
         const stackCards: SpotlightCardData[] = [];
 
@@ -353,6 +369,9 @@ const CreateProject: React.FC<CreateProjectProps> = ({ onGenerate }) => {
 
       case 3:
         const licenseList = ['MIT', 'Apache 2.0', 'GPL 3.0', 'BSD 2-Clause', 'None'];
+        //현재 선택된 라이선스의 허용/제한 스펙 데이터 바인딩
+        const currentSpec = licenseSpecs[formData.license] || { allow: [], restrict: [] };
+
         return (
           <div className="flex gap-8 h-full animate-in fade-in slide-in-from-right-8 duration-500">
             <div className="flex-1 space-y-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
@@ -370,9 +389,30 @@ const CreateProject: React.FC<CreateProjectProps> = ({ onGenerate }) => {
                 </button>
               ))}
             </div>
-            <div className="w-80 bg-orange-600/5 border border-orange-500/20 rounded-[32px] p-6 shrink-0">
-              <h3 className="text-sm font-bold flex items-center gap-2 mb-4"><ShieldCheck size={18} className="text-orange-400" /> License Detail</h3>
-              <p className="text-xs text-gray-500 leading-relaxed font-medium">프로젝트의 법적 권한을 설정합니다.</p>
+            <div className="w-80 bg-orange-600/5 border border-orange-500/20 rounded-[32px] p-6 shrink-0 flex flex-col justify-between h-full max-h-[400px]">
+              <div className="space-y-4">
+                <h3 className="text-sm font-bold flex items-center gap-2 text-orange-400"><ShieldCheck size={18} /> License Detail</h3>
+                
+                <p className="text-[13px] text-gray-300 leading-relaxed font-medium bg-white/[0.02] p-4 rounded-2xl border border-white/5">
+                  {licenseGuideTexts[formData.license] || '프로젝트의 법적 권한을 설정합니다.'}
+                </p>
+              </div>
+
+              <div className="mt-4 pt-4 border-t border-white/5 space-y-3 flex-1 overflow-y-auto custom-scrollbar">
+                <p className="text-[10px] text-gray-500 font-black uppercase tracking-wider">Permission Scope</p>
+                <div className="space-y-1.5">
+                  {currentSpec.allow.map((allowText, idx) => (
+                    <div key={idx} className="flex items-center gap-2 text-[11px] text-emerald-400 font-bold bg-emerald-500/5 px-2.5 py-1.5 rounded-xl border border-emerald-500/10">
+                      <div className="w-1 h-1 bg-emerald-400 rounded-full" /> {allowText}
+                    </div>
+                  ))}
+                  {currentSpec.restrict.map((restrictText, idx) => (
+                    <div key={idx} className="flex items-center gap-2 text-[11px] text-amber-400 font-bold bg-amber-500/5 px-2.5 py-1.5 rounded-xl border border-amber-500/10">
+                      <div className="w-1 h-1 bg-amber-400 rounded-full" /> {restrictText}
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
         );
@@ -393,7 +433,7 @@ const CreateProject: React.FC<CreateProjectProps> = ({ onGenerate }) => {
                   </div>
                 </div>
                 <div className="space-y-6 text-sm">
-                  <div><p className="text-[10px] text-gray-500 font-bold uppercase mb-1.5 tracking-widest">License Policy</p><p className="text-xl font-bold text-orange-400">{formData.license}</p></div>
+                  <div><p className="text-[10px] text-gray-500 font-bold uppercase mb-1.5 tracking-widest">Legal Policy</p><p className="text-xl font-bold text-orange-400">{formData.license}</p></div>
                 </div>
               </div>
             </div>
