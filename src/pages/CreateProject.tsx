@@ -82,10 +82,12 @@ const CreateProject: React.FC<CreateProjectProps> = ({ onGenerate }) => {
     //DTO 규격 매핑
     const requestDto: ProjectCreateRequestDto = {
       projectName: formData.projectName || "New_Project",
-      //풀스택 여부에 따라 전송 데이터 분기
-      framework: formData.finalAnalysis.architecture_type === 'FULL_STACK' 
+      //백엔드 멀티 프레임워크 빌드 인프라 뚫리면 아래 주석을 풀고 기존 코드 지울것
+      framework: "spring-boot", 
+      /* framework: formData.finalAnalysis.architecture_type === 'FULL_STACK' 
         ? formData.finalAnalysis.recommended_stack.unified?.name || ""
         : formData.finalAnalysis.recommended_stack.backend?.name || "", 
+      */
       language: formData.finalAnalysis.programming_language.value,
       license: mappedLicense,
       model: "gemini-1.5-flash",
@@ -289,6 +291,7 @@ const CreateProject: React.FC<CreateProjectProps> = ({ onGenerate }) => {
         );
 
       case 2:
+        // [원본 유지]: 전달해주신 원본 case 2 레이아웃 스타일 100% 원형 보존
         const current = formData.finalAnalysis;
         const stackCards: SpotlightCardData[] = [];
 
