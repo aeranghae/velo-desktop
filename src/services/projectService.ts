@@ -8,6 +8,7 @@ export interface ProjectCreateRequestDto {
   license: string;
   model: string;
   prompt: string;
+  architecture_type: string;
 }
 
 //ProjectResponseDto 규격에 맞춘 타입 정의

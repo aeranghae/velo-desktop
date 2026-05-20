@@ -89,7 +89,8 @@ const CreateProject: React.FC<CreateProjectProps> = ({ onGenerate }) => {
       language: formData.finalAnalysis.programming_language.value,
       license: mappedLicense,
       model: "gemini-1.5-flash",
-      prompt: formData.prompt
+      prompt: formData.prompt,
+      architecture_type: formData.finalAnalysis.architecture_type
     };
 
     try {
