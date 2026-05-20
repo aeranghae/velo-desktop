@@ -2,13 +2,27 @@ import React, { useState, useEffect } from 'react';
 import { Cpu, Layout, HardDrive, Save, CheckCircle2, Sparkles, BrainCircuit, BotMessageSquare, Bell, Trash2 } from 'lucide-react';
 import { userService } from '../services/userService';
 
-const AI_MODELS = [
-  { id: 'gpt-4o', name: 'GPT-4o', provider: 'OpenAI', icon: <Sparkles size={20} /> },
-  { id: 'claude-3-5-sonnet', name: 'Claude 3.5', provider: 'Anthropic', icon: <BrainCircuit size={20} /> },
-  { id: 'gemini-1-5-pro', name: 'Gemini 1.5 Pro', provider: 'Google', icon: <BotMessageSquare size={20} /> },
-];
+// 공급자(provider) 기준 아이콘 맵핑 테이블
+const PROVIDER_META_MAP: { [key: string]: { icon: React.ReactNode } } = {
+  'OpenAI': { icon: <Sparkles size={20} /> },
+  'Anthropic': { icon: <BrainCircuit size={20} /> },
+  'Google': { icon: <BotMessageSquare size={20} /> },
+  'DeepSeek': { icon: <Sparkles size={20} /> },
+  'Mistral AI': { icon: <Sparkles size={20} /> },
+  'Meta': { icon: <Sparkles size={20} /> },
+};
+
+// 백엔드 응답 데이터 구조 정의 (provider 필드 추가)
+interface LlmModelData {
+  id: string;
+  name: string;
+  provider: string;
+}
 
 const Settings: React.FC = () => {
+  // 정적 배열 대신 서버에서 받아올 동적 모델 리스트 상태 정의
+  const [aiModels, setAiModels] = useState<LlmModelData[]>([]);
+  
   // 실제로 서버에 완전히 반영되어 사용 중인 모델 상태값 (초기값 gpt-4o)
   const [activeModelId, setActiveModelId] = useState<string>('gpt-4o');
   // 사용자가 카드를 클릭해서 '임시 선택'한 모델 상태값
@@ -32,14 +46,61 @@ const Settings: React.FC = () => {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
   };
 
-  //서비스에서 용량을 가져와 상태에 매핑하는 함수
- const fetchStorageUsage = async () => {
+  const fetchLlmModels = async () => {
+    try {
+      const response = await userService.getLlmModelList();
+      
+      //[디버깅]브라우저 개발자도구 콘솔창에 찍히는 원본 데이터
+      console.log("📢 백엔드가 리턴한 LLM 모델 리스트 원본 데이터:", response);
+
+      // response 내부 depth 구조 방어막
+      let rawList: any[] = [];
+      if (Array.isArray(response)) {
+        rawList = response;
+      } else if (response && Array.isArray(response.data)) {
+        rawList = response.data;
+      } else if (response && Array.isArray(response.list)) {
+        rawList = response.list;
+      }
+
+      // 변수명 불일치로 인한 깨짐 방지용 실시간 매퍼 가동
+      const sanitizedModels = rawList.map((item: any) => {
+        // 케이스 1: 맵 내부 데이터가 순수 string 배열일 경우 대응 (ex: ["gpt-4o", "gemini-1.5-pro"])
+        if (typeof item === 'string') {
+          return { id: item, name: item.toUpperCase(), provider: 'AI System' };
+        }
+        
+        // 케이스 2: 필드명이 다르게 들어왔을 경우 유연하게 자동 추출 (modelName 케이스 추가)
+        const id = item.id || item.modelId || item.value || item.modelName || '';
+        const name = item.name || item.modelName || item.label || id;
+        const provider = item.provider || 'AI System';
+        
+        return { id, name, provider };
+      }).filter(model => model.id !== ''); // 불완전한 껍데기 필드 제거
+
+      if (sanitizedModels.length > 0) {
+        setAiModels(sanitizedModels);
+      } else {
+        throw new Error("정산적인 데이터 형식이 감지되지 않았습니다.");
+      }
+
+    } catch (error) {
+      console.error("LLM 모델 리스트 로딩 실패, 안전용 로컬 백업 구동:", error);
+      // 백엔드 연동 도중 에러가 터져도 화면이 터지거나 먹통이 되지 않게 디폴트 리스트 주입
+      setAiModels([
+        { id: 'gpt-4o', name: 'GPT-4o', provider: 'OpenAI' },
+        { id: 'claude-3-5-sonnet', name: 'Claude 3.5', provider: 'Anthropic' },
+        { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', provider: 'Google' }
+      ]);
+    }
+  };
+
+  // 서비스에서 용량을 가져와 상태에 매핑하는 함수
+  const fetchStorageUsage = async () => {
     setIsStorageLoading(true);
     try {
       const data = await userService.getStorageUsage();
-      
       const bytes = data && typeof data.usageBytes === 'number' ? data.usageBytes : 0;
-      
       setStorageUsageBytes(bytes);
     } catch (error) {
       console.error("화면 저장소 데이터 갱신 실패:", error);
@@ -48,12 +109,13 @@ const Settings: React.FC = () => {
     }
   };
 
-  //컴포넌트 로드 시 자동으로 용량 조회 실행
+  // 컴포넌트 로드 시 자동으로 용량 조회 및 모델 리스트 조회 실행
   useEffect(() => {
+    fetchLlmModels(); 
     fetchStorageUsage();
   }, []);
 
-  //개별 모델 적용 버튼을 눌렀을 때 동작할 함수
+  // 개별 모델 적용 버튼을 눌렀을 때 동작할 함수
   const handleApplyModel = async (modelId: string, e: React.MouseEvent) => {
     e.stopPropagation(); // 카드 자체의 클릭 이벤트가 또 터지는 것 방지
     
@@ -63,8 +125,6 @@ const Settings: React.FC = () => {
     setIsModelSaving(true);
     try {
       // 모델 변경 API 연동 코드 추가 예정
-      //
-      
       setActiveModelId(modelId); // 서버 저장 성공 시 진짜 활성화 상태로 변경
       alert(`AI 엔진이 ${modelId}(으)로 정식 변경되었습니다! ⚡`);
     } catch (error) {
@@ -81,27 +141,18 @@ const Settings: React.FC = () => {
 
     setIsSaving(true);
     try {
-      // 1️. 닉네임 변경 요청
       await userService.updateNickname(userName);
-
-      // 2️. 내 정보 조회 API 요청
       const resData = await userService.getUserInfo();
-      
-      // [디버깅] 백엔드가 실제로 준 데이터가 뭔지 
       console.log("백엔드가 돌려준 /api/user/me 원본 데이터:", resData);
 
       const updatedName = resData?.name || resData?.nickname || resData?.data?.name || resData?.data?.nickname;
       
       if (updatedName) {
         localStorage.setItem('aeranghae_user_name', updatedName);
-        setUserName(updatedName); // 현재 설정 페이지 UI 즉시 동기화
-        
-        // 브라우저 전체에 신호를 쏘아 사이드바 닉네임까지 실시간 변경
+        setUserName(updatedName);
         window.dispatchEvent(new Event('user-name-changed'));
-        
         alert("설정이 저장되었습니다.");
       } else {
-        // 서버에서 성공은 했는데 원하는 필드명(name/nickname)이 없을 때를 위한 방어막
         console.warn("백엔드 응답 데이터 구조에 name이나 nickname 필드가 없습니다.");
         alert("서버에 저장은 되었으나, 최신 닉네임 정보를 불러오지 못했습니다. 새로고침을 시도해 주세요.");
       }
@@ -129,15 +180,18 @@ const Settings: React.FC = () => {
 
       <div className="flex-1 flex flex-col gap-6 min-h-0 overflow-y-auto pr-1 custom-scrollbar">
         
-        {/* AI 엔진 섹션 (개별 적용 버튼 탑재) */}
+        {/* AI 엔진 섹션 (동적 모델 루프 구현 구역) */}
         <section className="bg-white/5 border border-white/10 rounded-[32px] p-6 shrink-0">
           <h3 className="text-base font-bold flex items-center gap-2 mb-4">
             <Cpu size={20} className="text-purple-400" /> AI Engine
           </h3>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {AI_MODELS.map((model) => {
+            {aiModels.map((model) => {
               const isSelected = selectedModelId === model.id;
               const isActive = activeModelId === model.id;
+              
+              // 공급자 기준 메타 데이터 추출 (없을 경우 기본 아이콘 폴백)
+              const meta = PROVIDER_META_MAP[model.provider] || { icon: <Sparkles size={20} /> };
 
               return (
                 <div 
@@ -153,10 +207,10 @@ const Settings: React.FC = () => {
                 >
                   <div className="flex items-start gap-3.5">
                     <div className={`p-2.5 rounded-xl shrink-0 ${isActive ? 'bg-blue-500 text-white' : 'bg-white/5 text-gray-400'}`}>
-                      {model.icon}
+                      {meta.icon}
                     </div>
                     <div className="min-w-0">
-                      <h4 className="font-bold text-sm text-white">{model.name}</h4>
+                      <h4 className="font-bold text-sm text-white truncate">{model.name}</h4>
                       <p className="text-[11px] text-gray-500 mt-0.5">{model.provider}</p>
                     </div>
                   </div>
