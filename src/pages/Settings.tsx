@@ -23,10 +23,9 @@ const Settings: React.FC = () => {
   // 정적 배열 대신 서버에서 받아올 동적 모델 리스트 상태 정의
   const [aiModels, setAiModels] = useState<LlmModelData[]>([]);
   
-  // 실제로 서버에 완전히 반영되어 사용 중인 모델 상태값 (초기값 gpt-4o)
-  const [activeModelId, setActiveModelId] = useState<string>('gpt-4o');
-  // 사용자가 카드를 클릭해서 '임시 선택'한 모델 상태값
-  const [selectedModelId, setSelectedModelId] = useState<string>('gpt-4o');
+  //서버에서 동적으로 가져오기 전까지 빈 상태
+  const [activeModelId, setActiveModelId] = useState<string>('');
+  const [selectedModelId, setSelectedModelId] = useState<string>('');
   
   const [userName, setUserName] = useState(localStorage.getItem('aeranghae_user_name') || '');
   const [isSaving, setIsSaving] = useState(false);
@@ -48,12 +47,10 @@ const Settings: React.FC = () => {
 
   const fetchLlmModels = async () => {
     try {
+      // 1. 사용 가능한 LLM 전체 리스트 조회
       const response = await userService.getLlmModelList();
-      
-      //[디버깅]브라우저 개발자도구 콘솔창에 찍히는 원본 데이터
-      console.log("📢 백엔드가 리턴한 LLM 모델 리스트 원본 데이터:", response);
+      console.log("백엔드가 리턴한 LLM 모델 리스트 원본 데이터:", response);
 
-      // response 내부 depth 구조 방어막
       let rawList: any[] = [];
       if (Array.isArray(response)) {
         rawList = response;
@@ -63,40 +60,65 @@ const Settings: React.FC = () => {
         rawList = response.list;
       }
 
-      // 변수명 불일치로 인한 깨짐 방지용 실시간 매퍼 가동
       const sanitizedModels = rawList.map((item: any) => {
-        // 케이스 1: 맵 내부 데이터가 순수 string 배열일 경우 대응 (ex: ["gpt-4o", "gemini-1.5-pro"])
         if (typeof item === 'string') {
           return { id: item, name: item.toUpperCase(), provider: 'AI System' };
         }
-        
-        // 케이스 2: 필드명이 다르게 들어왔을 경우 유연하게 자동 추출 (modelName 케이스 추가)
         const id = item.id || item.modelId || item.value || item.modelName || '';
         const name = item.name || item.modelName || item.label || id;
         const provider = item.provider || 'AI System';
         
         return { id, name, provider };
-      }).filter(model => model.id !== ''); // 불완전한 껍데기 필드 제거
+      }).filter(model => model.id !== '');
 
       if (sanitizedModels.length > 0) {
         setAiModels(sanitizedModels);
       } else {
-        throw new Error("정산적인 데이터 형식이 감지되지 않았습니다.");
+        throw new Error("정상적인 데이터 형식이 감지되지 않았습니다.");
+      }
+
+      // 2. 내 정보조회(/api/user/me)를 연달아 호출해서 유저가 설정해둔 기존 디폴트 모델 파싱
+      try {
+        const userInfo = await userService.getUserInfo();
+        console.log("📢 새로고침 후 유저 정보 내 모델 데이터 추적:", userInfo);
+        
+        // 다양한 응답 구조에 대비해 후보군을 모두 체크
+        const userDefaultModel =
+          userInfo?.model ||
+          userInfo?.defaultModel ||
+          userInfo?.data?.model ||
+          userInfo?.data?.defaultModel;
+        
+        if (userDefaultModel) {
+          console.log("매핑 성공한 디폴트 모델:", userDefaultModel);
+          setActiveModelId(userDefaultModel);
+          setSelectedModelId(userDefaultModel);
+        } else {
+          // 데이터가 없거나 꼬였을 때의 안전장치
+          const fallbackId = sanitizedModels[0]?.id || 'gpt-4o';
+          setActiveModelId(fallbackId);
+          setSelectedModelId(fallbackId);
+        }
+      } catch (userError) {
+        console.error("유저 정보에서 기본 모델 조회 실패, gpt-4o 디폴트 처리:", userError);
+        setActiveModelId('gpt-4o');
+        setSelectedModelId('gpt-4o');
       }
 
     } catch (error) {
       console.error("LLM 모델 리스트 로딩 실패, 안전용 로컬 백업 구동:", error);
-      // 백엔드 연동 도중 에러가 터져도 화면이 터지거나 먹통이 되지 않게 디폴트 리스트 주입
       setAiModels([
         { id: 'gpt-4o', name: 'GPT-4o', provider: 'OpenAI' },
         { id: 'claude-3-5-sonnet', name: 'Claude 3.5', provider: 'Anthropic' },
         { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', provider: 'Google' }
       ]);
+      setActiveModelId('gpt-4o');
+      setSelectedModelId('gpt-4o');
     }
   };
 
   // 서비스에서 용량을 가져와 상태에 매핑하는 함수
-  const fetchStorageUsage = async () => {
+  const formatStorageUsage = async () => {
     setIsStorageLoading(true);
     try {
       const data = await userService.getStorageUsage();
@@ -112,23 +134,34 @@ const Settings: React.FC = () => {
   // 컴포넌트 로드 시 자동으로 용량 조회 및 모델 리스트 조회 실행
   useEffect(() => {
     fetchLlmModels(); 
-    fetchStorageUsage();
+    formatStorageUsage();
   }, []);
 
   // 개별 모델 적용 버튼을 눌렀을 때 동작할 함수
   const handleApplyModel = async (modelId: string, e: React.MouseEvent) => {
-    e.stopPropagation(); // 카드 자체의 클릭 이벤트가 또 터지는 것 방지
-    
+    e.stopPropagation();
     const token = localStorage.getItem('aeranghae_token');
     if (!token) return alert("로그인이 필요한 기능입니다.");
 
     setIsModelSaving(true);
     try {
-      // 모델 변경 API 연동 코드 추가 예정
-      setActiveModelId(modelId); // 서버 저장 성공 시 진짜 활성화 상태로 변경
-      alert(`AI 엔진이 ${modelId}(으)로 정식 변경되었습니다! ⚡`);
-    } catch (error) {
-      alert("모델 변경 중 오류가 발생했습니다.");
+      await userService.setDefaultLlmModel(modelId);
+      
+      // 서버 정합성 확보를 위해 저장 후 유저 정보를 재조회해 실제 적용된 모델 ID를 반영
+      const userInfo = await userService.getUserInfo();
+      const appliedModel =
+        userInfo?.model ||
+        userInfo?.defaultModel ||
+        userInfo?.data?.model ||
+        userInfo?.data?.defaultModel ||
+        modelId; // 못 읽으면 그래도 사용자가 누른 값 반영
+      
+      setActiveModelId(appliedModel);
+      setSelectedModelId(appliedModel);
+      alert(`AI 엔진이 ${appliedModel}(으)로 변경되었습니다. `);
+    } catch (error: any) {
+      console.error("모델 변경 실패:", error);
+      alert("모델 변경 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
     } finally {
       setIsModelSaving(false);
     }

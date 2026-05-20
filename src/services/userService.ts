@@ -1,13 +1,25 @@
 import API from './index';
 
 export const userService = {
-  //사용 가능한 LLM 모델 리스트 조화 (GET)
+  //사용 가능한 LLM 모델 리스트 조회 (GET)
   getLlmModelList: async () => {
     try {
       const response = await API.get('/api/llm/list');
       return response.data; // 백엔드 데이터 반환
     } catch (error) {
       console.error("LLM 모델 리스트 조회 API 에러:", error);
+      throw error;
+    }
+  },
+
+  // AI 기본 모델 설정 변경 요청 (POST)
+  // 추가된 리스트 값(modelName)을 데이터 객체 바디에 실어 서버로 전송
+  setDefaultLlmModel: async (modelName: string) => {
+    try {
+      const response = await API.patch('/api/llm/setdefaultmodel', { modelName });
+      return response.data;
+    } catch (error) {
+      console.error("기본 LLM 모델 설정 변경 API 에러:", error);
       throw error;
     }
   },
