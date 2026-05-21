@@ -19,10 +19,9 @@ interface AnalysisVersion {
   core_features: { name: string; description: string }[];
   user_constraints?: string;
   external_integration?: string;
-  architecture_type: 'FULL_STACK' | 'CLIENT_SERVER'; //아키텍처 타입 판별자
+  architecture_type: 'FULL_STACK' | 'CLIENT_SERVER';
   app_form: { value: string; isInferred: boolean; reasoning?: string };
   programming_language: { value: string; isInferred: boolean; reasoning?: string };
-  // 구조 변경: 통합/분할에 따른 프레임워크 데이터
   recommended_stack: {
     unified?: { name: string; reason: string }; 
     backend?: { name: string; reason: string };
@@ -46,15 +45,9 @@ const CreateProject: React.FC<CreateProjectProps> = ({ onGenerate }) => {
     selectedHistoryIdx: -1,
     finalAnalysis: null as AnalysisVersion | null,
     license: 'MIT',
-    //[테스트용] 스택 구성 세부 선택. 추후 LLM 연동 시 LLM 결과로 대체
-    // unified  : 통합 풀스택 (Spring Boot, 카드 1장 / FULL_STACK)
-    // split    : 분리 풀스택 (backend+frontend, 카드 2장 / FULL_STACK)
-    // backend  : 백엔드 단독 (FastAPI, 카드 1장 / CLIENT_SERVER)
-    // frontend : 프론트 단독 (React, 카드 1장 / CLIENT_SERVER)
     manualStackMode: 'unified' as 'unified' | 'split' | 'backend' | 'frontend',
   });
 
-  // 실시간 가이드 연동용 라이선스별 상세 설명 데이터
   const licenseGuideTexts: { [key: string]: string } = {
     'MIT': '가장 직관적이고 제약이 없는 오픈소스 양식입니다. 누구나 자유롭게 코드를 복제, 수정, 배포, 상업적 이용을 할 수 있으며 소스코드 공개 의무도 존재하지 않습니다. 원저작권 고지 조항만 유지하면 모든 행위가 법적으로 허용됩니다.',
     'Apache 2.0': 'MIT의 장점에 더해 특허권 라이선스 허용 및 특허 침해 소송에 대한 방어 조항이 명시되어 있습니다. 기업 환경 및 대규모 협업 프로젝트에서 법적 안전장치로 매우 선호하는 강력하고 안전한 계약 규격입니다.',
@@ -63,7 +56,6 @@ const CreateProject: React.FC<CreateProjectProps> = ({ onGenerate }) => {
     'None': '오픈소스 규칙을 배포 규격에 명시하지 않은 독점적 저작권 상태입니다. 타인이 본 소스코드를 무단 복제, 배포, 변경하는 모든 행위가 법적으로 전면 제한되며 오직 작성자 본인에게만 독점권이 부여됩니다.'
   };
 
-  //라이선스별 권한 데이터 매핑
   const licenseSpecs: { [key: string]: { allow: string[]; restrict: string[] } } = {
     'MIT': { allow: ['상업적 이용 가능', '코드 수정 및 배포', '비공개 프로젝트 적용'], restrict: ['원저작권 고지 유지 필수'] },
     'Apache 2.0': { allow: ['상업적 이용 가능', '코드 수정 및 배포', '특허 라이선스 전면 허용'], restrict: ['수정 파일 변경 고지 필수'] },
@@ -72,23 +64,15 @@ const CreateProject: React.FC<CreateProjectProps> = ({ onGenerate }) => {
     'None': { allow: ['개인적 열람 및 확인'], restrict: ['무단 복제/배포 금지', '상업적 활용 불가', '파생 저작물 작성 제한'] }
   };
 
-  //프레임워크 식별자 매핑 테이블 (백엔드 규격: 소문자)
   const frameworkIdMap: { [key: string]: string } = {
-    'React': 'react',
-    'Vue': 'vue',
-    'FastAPI': 'fastapi',
-    'Next.js': 'nextjs',
-    'NestJS': 'nestjs',
-    'Spring Boot': 'spring-boot',
+    'React': 'react', 'Vue': 'vue', 'FastAPI': 'fastapi', 'Next.js': 'nextjs', 'NestJS': 'nestjs', 'Spring Boot': 'spring-boot',
   };
 
-  //프레임워크 이름을 백엔드 식별자로 변환 (매핑에 없으면 소문자+공백/점 제거로 fallback)
   const toFrameworkId = (name?: string): string => {
     if (!name) return "";
     return frameworkIdMap[name] || name.toLowerCase().replace(/[\s.]/g, '');
   };
 
-  //백엔드 POST 요청 핸들러
   const handleGenerateProject = async () => {
     if (!formData.finalAnalysis) return alert("요구사항 분석을 먼저 완료해주세요!");
 
@@ -102,53 +86,32 @@ const CreateProject: React.FC<CreateProjectProps> = ({ onGenerate }) => {
     if (mappedLicense === 'NONE (라이선스 없음)') mappedLicense = 'NONE';
 
     const stack = formData.finalAnalysis.recommended_stack;
-
-    //각 프레임워크 필드 값 (식별자 소문자 변환)
     const fullstackFw = toFrameworkId(stack.unified?.name);
     const backendFw   = toFrameworkId(stack.backend?.name);
     const frontendFw  = toFrameworkId(stack.frontend?.name);
 
-    /*
-     * [아키텍처 타입 자동 판정]
-     * - fullstack_framework 있음            → FULL_STACK (통합 프레임워크, 카드 1장)
-     * - backend + frontend 둘 다 있음       → FULL_STACK (분리 생성, 카드 2장)
-     * - backend / frontend 중 하나만 있음   → CLIENT_SERVER (단일 생성, 카드 1장)
-     */
     const hasBoth = !!backendFw && !!frontendFw;
     const hasOne  = (!!backendFw || !!frontendFw) && !hasBoth;
-    const archType: string = (fullstackFw || hasBoth)
-      ? 'FULL_STACK'
-      : (hasOne ? 'CLIENT_SERVER' : 'FULL_STACK');
+    const archType: string = (fullstackFw || hasBoth) ? 'FULL_STACK' : (hasOne ? 'CLIENT_SERVER' : 'FULL_STACK');
 
-    //DTO 규격 매핑
     const requestDto: ProjectCreateRequestDto = {
       projectName: formData.projectName || "New_Project",
       architecture_type: archType,
-
-      // FULL_STACK 통합 프레임워크 케이스
       fullstack_framework: fullstackFw,
-      fullstack_language: fullstackFw
-        ? formData.finalAnalysis.programming_language.value
-        : "",
-
-      // 분리(backend/frontend) 케이스 - 채워진 쪽만 값이 들어감
+      fullstack_language: fullstackFw ? formData.finalAnalysis.programming_language.value : "",
       backend_framework: backendFw,
       frontend_framework: frontendFw,
       backend_language: backendFw ? "python" : "",
       frontend_language: frontendFw ? "typescript" : "",
-
       database: "SQLite",
-
       license: mappedLicense,
       model: "gemini-1.5-flash",
       prompt: formData.prompt,
     };
 
-    //[확인용] 백엔드 전송 직전 요청 객체 로그 (테스트 끝나면 삭제 가능)
     console.log("=== 전송 요청 객체 ===", JSON.stringify(requestDto, null, 2));
 
     try {
-      // 서버로 전송
       const result = await projectService.generateProject(requestDto);
       onGenerate(result); 
       alert("프로젝트 생성이 성공적으로 요청되었습니다!");
@@ -173,58 +136,53 @@ const CreateProject: React.FC<CreateProjectProps> = ({ onGenerate }) => {
 
   const handleAnalyze = async () => {
     if (!formData.prompt.trim()) return alert("프롬프트를 입력해주세요.");
-    
+
     setIsAnalyzing(true);
-    setTimeout(() => {
-      const mode = formData.manualStackMode;
-      const isSplitMode = mode === 'backend' || mode === 'frontend';
-      
+    try {
+      const res = await projectService.analyzeProject(formData.prompt);
+
+      const fw = res.framework || { unified: '', backend: '', frontend: '' };
+      const lang = res.language || { unified: '', backend: '', frontend: '' };
+
+      const recommended_stack: AnalysisVersion['recommended_stack'] = {};
+      if (fw.unified)  recommended_stack.unified  = { name: fw.unified, reason: res.rationale };
+      if (fw.backend)  recommended_stack.backend  = { name: fw.backend, reason: res.rationale };
+      if (fw.frontend) recommended_stack.frontend = { name: fw.frontend, reason: res.rationale };
+
+      const langValue = lang.unified || [lang.backend, lang.frontend].filter(Boolean).join(' / ') || '';
+
       const newVersion: AnalysisVersion = {
-        one_line_summary: isSplitMode ? "독립적 모듈 기반의 단일 컴포넌트 프로젝트" : "통합 아키텍처 기반 풀스택 시스템",
-        primary_actions: ["데이터 CRUD", "알림 발송", "통계 분석"],
-        core_features: [
-          { name: "핵심 기능", description: "프로젝트 요구사항에 따른 맞춤형 설계" }
-        ],
-        //스택 구성으로 아키텍처 타입 판정 (backend/frontend 단독 → CLIENT_SERVER)
-        architecture_type: isSplitMode ? 'CLIENT_SERVER' : 'FULL_STACK',
-        app_form: { value: isSplitMode ? "Web API or Client" : "Full Stack Web App", isInferred: true },
-        programming_language: {
-          value: mode === 'unified' ? "Java"
-               : mode === 'backend'  ? "Python"
-               : mode === 'frontend' ? "TypeScript"
-               : "Java / TypeScript",
+        one_line_summary: res.subject || res.projectDescription || '',
+        primary_actions: res.coreFeatures || [],
+        core_features: (res.coreFeatures || []).map(f => ({ name: f, description: '' })),
+        user_constraints: (res.constraints || []).join(', '),
+        architecture_type: res.architectureType,
+        app_form: {
+          value: res.architectureType === 'FULL_STACK' ? 'Full Stack Web App' : 'Single Component',
           isInferred: true
         },
-        
-        //스택 구성에 따른 추천 스택 주입
-        //- unified  : 통합 프레임워크 1장
-        //- split    : backend + frontend 2장 (둘 다 → FULL_STACK)
-        //- backend  : backend 단독 1장
-        //- frontend : frontend 단독 1장
-        recommended_stack:
-          mode === 'unified' ? {
-            unified: { name: 'Spring Boot', reason: '백엔드와 프론트엔드를 통합 관리하는 안정적인 아키텍처' }
-          } : mode === 'split' ? {
-            backend:  { name: 'Spring Boot', reason: '안정적인 비즈니스 로직 처리를 위한 백엔드' },
-            frontend: { name: 'React', reason: '컴포넌트 기반의 인터랙티브한 UI 구현' }
-          } : mode === 'backend' ? {
-            backend:  { name: 'FastAPI', reason: '독립 실행되는 API 서버 단독 생성' }
-          } : {
-            frontend: { name: 'React', reason: '독립 실행되는 클라이언트 단독 생성' }
-          },
-
+        programming_language: { value: langValue, isInferred: true },
+        recommended_stack,
         prompt: formData.prompt,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
-      
+
       setFormData(prev => ({
         ...prev,
         analysisHistory: [newVersion, ...prev.analysisHistory],
         selectedHistoryIdx: 0,
       }));
-      setIsAnalyzing(false);
       setShowStackGuide(false);
-    }, 1200);
+    } catch (error: any) {
+      console.error("분석 에러:", error);
+      if (error?.response?.status === 429) {
+        alert("분석 요청이 일시적으로 제한되었습니다 (429).\n잠시 후 다시 시도해주세요.");
+      } else {
+        alert("요구사항 분석 중 오류가 발생했습니다. 주소 연동단 규격을 재검사 중입니다.");
+      }
+    } finally {
+      setIsAnalyzing(false);
+    }
   };
 
   const renderContent = () => {
@@ -245,7 +203,6 @@ const CreateProject: React.FC<CreateProjectProps> = ({ onGenerate }) => {
                 />
               </div>
 
-              {/* [테스트용] 스택 구성 세부 선택. LLM 연동 시 제거 또는 LLM 결과로 대체 */}
               <div>
                 <label className="text-[10px] font-bold text-cyan-400 uppercase tracking-[0.2em] ml-1">Stack Mode (테스트용 수동 선택 - 나중에 없앨것)</label>
                 <div className="grid grid-cols-2 gap-2 mt-2">
@@ -279,18 +236,18 @@ const CreateProject: React.FC<CreateProjectProps> = ({ onGenerate }) => {
                     </button>
                   </div>
                   <button 
-                   onClick={() => setFormData({ 
-                  ...formData, 
-                  prompt: `[누가 사용하나요?]\n- \n\n[핵심 목적]\n- \n\n[가장 필요한 기능 설명]\n- ` 
-                })} 
-                className="text-[10px] bg-purple-600/20 text-purple-400 px-3 py-1.5 rounded-xl border border-purple-500/30 hover:bg-purple-600/30 font-bold transition-all"
-              >
-                가이드라인 불러오기
-              </button>
-            </div>
+                    onClick={() => setFormData({ 
+                      ...formData, 
+                      prompt: `[누가 사용하나요?]\n- \n\n[핵심 목적]\n- \n\n[가장 필요한 기능 설명]\n- ` 
+                    })} 
+                    className="text-[10px] bg-purple-600/20 text-purple-400 px-3 py-1.5 rounded-xl border border-purple-500/30 hover:bg-purple-600/30 font-bold transition-all"
+                  >
+                    가이드라인 불러오기
+                  </button>
+                </div>
                 <textarea 
                   className="flex-1 bg-white/5 border border-white/10 rounded-2xl p-6 outline-none focus:border-purple-500 resize-none transition-all text-sm leading-relaxed custom-scrollbar shadow-inner" 
-                  placeholder="아이디어를 입력하세요. 가이드를 참고하면 더 정확한 분석이 가능합니다.&#10;&#10;📢 [테스트 안내]&#10;• 위의 Stack Mode 토글로 풀스택/단일 구성을 직접 선택할 수 있습니다.&#10;• 통합 풀스택/단일은 카드 1장, 분리 풀스택은 카드 2장으로 표시됩니다."
+                  placeholder="아이디어를 입력하세요. 가이드를 참고하면 더 정확한 분석이 가능합니다."
                   value={formData.prompt}
                   onChange={(e) => setFormData({...formData, prompt: e.target.value})}
                 />
@@ -386,7 +343,6 @@ const CreateProject: React.FC<CreateProjectProps> = ({ onGenerate }) => {
         );
 
       case 2:
-        // [원본 유지]: 전달해주신 원본 case 2 레이아웃 스타일 100% 원형 보존
         const current = formData.finalAnalysis;
         const stackCards: SpotlightCardData[] = [];
 
@@ -468,7 +424,6 @@ const CreateProject: React.FC<CreateProjectProps> = ({ onGenerate }) => {
 
       case 3:
         const licenseList = ['MIT', 'Apache 2.0', 'GPL 3.0', 'BSD 2-Clause', 'None'];
-        //현재 선택된 라이선스의 허용/제한 스펙 데이터 바인딩
         const currentSpec = licenseSpecs[formData.license] || { allow: [], restrict: [] };
 
         return (
@@ -491,7 +446,6 @@ const CreateProject: React.FC<CreateProjectProps> = ({ onGenerate }) => {
             <div className="w-80 bg-orange-600/5 border border-orange-500/20 rounded-[32px] p-6 shrink-0 flex flex-col justify-between h-full max-h-[400px]">
               <div className="space-y-4">
                 <h3 className="text-sm font-bold flex items-center gap-2 text-orange-400"><ShieldCheck size={18} /> License Detail</h3>
-                
                 <p className="text-[13px] text-gray-300 leading-relaxed font-medium bg-white/[0.02] p-4 rounded-2xl border border-white/5">
                   {licenseGuideTexts[formData.license] || '프로젝트의 법적 권한을 설정합니다.'}
                 </p>
