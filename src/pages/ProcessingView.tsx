@@ -9,25 +9,45 @@ interface ProcessingViewProps {
 
 // status별 진행률 바 대략값 매핑
 const STATUS_PROGRESS: { [key in ProjectStatus]: number } = {
+  INIT: 5,
   CREATED: 10,
-  ANALYZING: 35,
-  GENERATING: 70,
+  PROVISIONING: 20,
+  CONFIGURING: 30,
+  ANALYZING: 45,
+  CODING: 65,
+  GENERATING: 75,
+  EXECUTING: 90,
   COMPLETED: 100,
   FAILED: 100,
 };
 
-// 진행 중으로 간주하는 상태 (이때만 SSE 연결)
-const IN_PROGRESS: ProjectStatus[] = ['CREATED', 'ANALYZING', 'GENERATING'];
+// 종료 상태 (이외에는 모두 진행 중으로 간주 → SSE 연결)
+const TERMINAL_STATUS: ProjectStatus[] = ['COMPLETED', 'FAILED'];
+
+// 상태 한글 라벨
+const STATUS_LABEL: { [key in ProjectStatus]: string } = {
+  INIT: '초기화 중',
+  CREATED: '프로젝트 생성됨',
+  PROVISIONING: '인프라 준비 중',
+  CONFIGURING: '환경 구성 중',
+  ANALYZING: '요구사항 분석 중',
+  CODING: '코드 작성 중',
+  GENERATING: '코드 생성 중',
+  EXECUTING: '빌드 실행 중',
+  COMPLETED: '생성 완료',
+  FAILED: '생성 실패',
+};
 
 const ProcessingView: React.FC<ProcessingViewProps> = ({ projectUuid, onComplete }) => {
-  const [status, setStatus] = useState<ProjectStatus>('CREATED');
+  const [status, setStatus] = useState<ProjectStatus>('INIT');
   const [progress, setProgress] = useState(0);
   // 로그는 \n 포함 단일 텍스트로 관리 (white-space: pre-wrap으로 렌더링)
   const [logText, setLogText] = useState<string>('System: AI Generation Engine initialized.\n');
   const [loadError, setLoadError] = useState<string>('');
 
   const logEndRef = useRef<HTMLDivElement>(null);
-  const sseRef = useRef<EventSource | null>(null);
+  // SSE 연결 해제 함수 보관
+  const closeStreamRef = useRef<(() => void) | null>(null);
 
   // 로그 갱신 시 자동 스크롤
   useEffect(() => {
@@ -41,21 +61,27 @@ const ProcessingView: React.FC<ProcessingViewProps> = ({ projectUuid, onComplete
     let cancelled = false;
 
     // 초기 상태/과거 로그 조회 (SSE 종료 후 최종 상태 재확인에도 재사용)
-    const fetchInitialData = async () => {
+    const fetchInitialData = async (): Promise<ProjectStatus | null> => {
       try {
         const data = await projectService.getProjectInitialLog(projectUuid);
-        if (cancelled) return;
+        if (cancelled) return null;
 
         setStatus(data.status);
         setProgress(STATUS_PROGRESS[data.status] ?? 0);
-        // previousLogs를 터미널에 그대로 출력 (\n 포함 단일 텍스트)
         if (data.previousLogs) {
           setLogText(data.previousLogs.endsWith('\n') ? data.previousLogs : data.previousLogs + '\n');
         }
+        setLoadError('');
         return data.status;
-      } catch (error) {
+      } catch (error: any) {
         console.error('초기 로그 조회 실패:', error);
-        if (!cancelled) setLoadError('로그 정보를 불러오지 못했습니다.');
+        if (!cancelled) {
+          if (error?.response?.status === 403) {
+            setLoadError('실시간 로그 API 연동 대기 중입니다. (백엔드 준비 중 / 403)');
+          } else {
+            setLoadError('로그 정보를 불러오지 못했습니다.');
+          }
+        }
         return null;
       }
     };
@@ -64,18 +90,19 @@ const ProcessingView: React.FC<ProcessingViewProps> = ({ projectUuid, onComplete
       const initialStatus = await fetchInitialData();
       if (cancelled || !initialStatus) return;
 
-      // 진행 중 상태일 때만 실시간 스트림 연결
-      if (IN_PROGRESS.includes(initialStatus)) {
-        sseRef.current = projectService.connectProjectLogStream(
+      // 종료 상태가 아니면 실시간 스트림 연결
+      if (!TERMINAL_STATUS.includes(initialStatus)) {
+        closeStreamRef.current = projectService.connectProjectLogStream(
           projectUuid,
           // onLog: 새 로그 라인 append
-          (line) => {
-            setLogText((prev) => prev + line + '\n');
+          (line) => setLogText((prev) => prev + line + '\n'),
+          // onStatus: 4파트 중 status로 상단 진행 상태 갱신
+          (newStatus) => {
+            setStatus(newStatus);
+            setProgress(STATUS_PROGRESS[newStatus] ?? 0);
           },
-          // onError: 스트림 종료 → 최종 상태 재조회
-          () => {
-            fetchInitialData();
-          }
+          // onError/onclose: 스트림 종료 → 최종 상태 재조회
+          () => { fetchInitialData(); }
         );
       }
     };
@@ -85,23 +112,14 @@ const ProcessingView: React.FC<ProcessingViewProps> = ({ projectUuid, onComplete
     // 언마운트 시 SSE 정리
     return () => {
       cancelled = true;
-      sseRef.current?.close();
-      sseRef.current = null;
+      closeStreamRef.current?.();
+      closeStreamRef.current = null;
     };
   }, [projectUuid]);
 
   const isFinished = status === 'COMPLETED';
   const isFailed = status === 'FAILED';
   const isDone = isFinished || isFailed;
-
-  // 상태 한글 라벨
-  const statusLabel: { [key in ProjectStatus]: string } = {
-    CREATED: '프로젝트 생성됨',
-    ANALYZING: '요구사항 분석 중',
-    GENERATING: '코드 생성 중',
-    COMPLETED: '생성 완료',
-    FAILED: '생성 실패',
-  };
 
   return (
     <div className="w-full h-full max-h-[calc(100vh-140px)] flex flex-col justify-between p-6 text-white relative overflow-hidden bg-[#0D0D0E]">
@@ -156,7 +174,7 @@ const ProcessingView: React.FC<ProcessingViewProps> = ({ projectUuid, onComplete
           <div className="space-y-2">
             <div className="flex justify-between text-[9px] font-black uppercase tracking-widest px-1">
               <span className={isFinished ? 'text-emerald-400' : isFailed ? 'text-red-400' : 'text-cyan-400'}>
-                {statusLabel[status]}
+                {STATUS_LABEL[status]}
               </span>
               <span className={`font-black text-xs ${isFinished ? 'text-emerald-400' : isFailed ? 'text-red-400' : 'text-cyan-400'}`}>
                 {progress}%
@@ -184,7 +202,6 @@ const ProcessingView: React.FC<ProcessingViewProps> = ({ projectUuid, onComplete
                 {loadError ? (
                     <span className="text-red-400">{loadError}</span>
                 ) : (
-                    // previousLogs / 실시간 로그를 \n 포함 단일 텍스트로 그대로 렌더링
                     <pre className="whitespace-pre-wrap break-words text-gray-400 font-mono">{logText}</pre>
                 )}
                 {!isDone && !loadError && (
@@ -208,7 +225,7 @@ const ProcessingView: React.FC<ProcessingViewProps> = ({ projectUuid, onComplete
                     : 'bg-white/5 text-cyan-400 border border-cyan-500/20 hover:bg-cyan-500/5'
                 }`}
         >
-            {isFinished ? 'OPEN CODE INSPECTOR' : isFailed ? 'RETURN TO WORKSPACE' : 'RETURN TO WORKSPACE'}
+            {isFinished ? 'OPEN CODE INSPECTOR' : 'RETURN TO WORKSPACE'}
         </button>
 
       </div>

@@ -1,10 +1,14 @@
 import API from './index';
+import { fetchEventSource } from '@microsoft/fetch-event-source';
 
 const BACKEND_URL = 'https://oxxultus.cloud';
 const TOKEN_KEY = 'aeranghae_token';
 
 // 실시간 로그 프로젝트 상태 타입
-export type ProjectStatus = 'CREATED' | 'ANALYZING' | 'GENERATING' | 'COMPLETED' | 'FAILED';
+export type ProjectStatus =
+  | 'INIT' | 'CREATED' | 'PROVISIONING' | 'CONFIGURING'
+  | 'ANALYZING' | 'CODING' | 'GENERATING' | 'EXECUTING'
+  | 'COMPLETED' | 'FAILED';
 
 // 실시간 로그용 초기 데이터 응답 인터페이스
 export interface ProjectLogResponse {
@@ -122,34 +126,64 @@ export const projectService = {
   },
 
   // (로그) 실시간 공정 로그 SSE 스트림 연결
-  // onLog: "레벨||시간||메시지" 파싱 결과를 한 줄씩 전달
-  // onError: 스트림 종료/에러 시 호출 (최종 상태 재조회용)
-  // 반환값: 연결을 끊을 수 있는 EventSource 객체
+  // 백엔드 규격: 헤더 인증(Authorization) + 4파트 데이터(레벨||시간||상태||메시지)
+  // onLog   : 포맷된 로그 라인을 한 줄씩 전달
+  // onStatus: 4파트 중 status를 전달 (상단 진행 상태 갱신용)
+  // onError : 스트림 종료/에러 시 호출 (최종 상태 재조회용)
+  // 반환값  : 연결을 끊는 함수 (AbortController.abort)
   connectProjectLogStream: (
     uuid: string,
     onLog: (line: string) => void,
+    onStatus: (status: ProjectStatus) => void,
     onError: () => void
-  ): EventSource => {
+  ): (() => void) => {
     const token = localStorage.getItem(TOKEN_KEY) || '';
-    // EventSource는 헤더를 못 보내므로 토큰을 쿼리 파라미터로 전달
-    const url = `${BACKEND_URL}/api/projects/${uuid}/logs/stream?token=${encodeURIComponent(token)}`;
-    const eventSource = new EventSource(url);
+    const controller = new AbortController();
 
-    eventSource.addEventListener('log-stream', (event: MessageEvent) => {
-      // 데이터 형식: "레벨||시간||메시지"
-      const parts = String(event.data).split('||');
-      const level   = parts[0] ?? '';
-      const time    = parts[1] ?? '';
-      const message = parts[2] ?? '';
-      onLog(`[${level}][${time}] ${message}`);
+    fetchEventSource(`${BACKEND_URL}/api/projects/${uuid}/logs/stream`, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      signal: controller.signal,
+
+      onmessage(event) {
+        // 백엔드 이벤트명: log-stream 만 처리
+        if (event.event !== 'log-stream') return;
+
+        // 데이터 형식: "레벨||시간||상태||메시지" (최대 4분할)
+        const [logLevel, timestamp, status, message] = String(event.data).split('||', 4);
+
+        // 시간은 ISO 문자열에서 HH:mm:ss만 추출
+        const displayTime = timestamp ? timestamp.substring(11, 19) : '';
+        onLog(`[${logLevel ?? ''}] [${displayTime}] ${message ?? ''}`);
+
+        // 상태 갱신
+        if (status) onStatus(status as ProjectStatus);
+
+        // 종료 상태면 스트림 닫기
+        if (status === 'COMPLETED' || status === 'FAILED') {
+          controller.abort();
+        }
+      },
+
+      onerror(err) {
+        // 에러 시 종료하고 콜백 호출 (재시도 방지를 위해 throw)
+        controller.abort();
+        onError();
+        throw err;
+      },
+
+      onclose() {
+        // 서버가 연결을 닫은 경우에도 최종 상태 재확인
+        onError();
+      },
+    }).catch(() => {
+      // abort로 인한 정상 종료 등은 무시
     });
 
-    eventSource.onerror = () => {
-      eventSource.close();
-      onError();
-    };
-
-    return eventSource;
+    // 호출부에서 연결을 끊을 수 있도록 abort 함수 반환
+    return () => controller.abort();
   },
 
 
