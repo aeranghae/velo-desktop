@@ -46,6 +46,12 @@ const CreateProject: React.FC<CreateProjectProps> = ({ onGenerate }) => {
     selectedHistoryIdx: -1,
     finalAnalysis: null as AnalysisVersion | null,
     license: 'MIT',
+    //[테스트용] 스택 구성 세부 선택. 추후 LLM 연동 시 LLM 결과로 대체
+    // unified  : 통합 풀스택 (Spring Boot, 카드 1장 / FULL_STACK)
+    // split    : 분리 풀스택 (backend+frontend, 카드 2장 / FULL_STACK)
+    // backend  : 백엔드 단독 (FastAPI, 카드 1장 / CLIENT_SERVER)
+    // frontend : 프론트 단독 (React, 카드 1장 / CLIENT_SERVER)
+    manualStackMode: 'unified' as 'unified' | 'split' | 'backend' | 'frontend',
   });
 
   // 실시간 가이드 연동용 라이선스별 상세 설명 데이터
@@ -66,12 +72,28 @@ const CreateProject: React.FC<CreateProjectProps> = ({ onGenerate }) => {
     'None': { allow: ['개인적 열람 및 확인'], restrict: ['무단 복제/배포 금지', '상업적 활용 불가', '파생 저작물 작성 제한'] }
   };
 
+  //프레임워크 식별자 매핑 테이블 (백엔드 규격: 소문자)
+  const frameworkIdMap: { [key: string]: string } = {
+    'React': 'react',
+    'Vue': 'vue',
+    'FastAPI': 'fastapi',
+    'Next.js': 'nextjs',
+    'NestJS': 'nestjs',
+    'Spring Boot': 'spring-boot',
+  };
+
+  //프레임워크 이름을 백엔드 식별자로 변환 (매핑에 없으면 소문자+공백/점 제거로 fallback)
+  const toFrameworkId = (name?: string): string => {
+    if (!name) return "";
+    return frameworkIdMap[name] || name.toLowerCase().replace(/[\s.]/g, '');
+  };
+
   //백엔드 POST 요청 핸들러
   const handleGenerateProject = async () => {
     if (!formData.finalAnalysis) return alert("요구사항 분석을 먼저 완료해주세요!");
 
     setIsGenerating(true);
-    
+
     let mappedLicense = formData.license.toUpperCase();
     if (mappedLicense === 'APACHE 2.0') mappedLicense = 'APACHE-2.0';
     if (mappedLicense === 'GPL 3.0') mappedLicense = 'GPL-3.0';
@@ -79,30 +101,64 @@ const CreateProject: React.FC<CreateProjectProps> = ({ onGenerate }) => {
     if (mappedLicense === 'BSD 3-CLAUSE') mappedLicense = 'BSD-3-CLAUSE';
     if (mappedLicense === 'NONE (라이선스 없음)') mappedLicense = 'NONE';
 
+    const stack = formData.finalAnalysis.recommended_stack;
+
+    //각 프레임워크 필드 값 (식별자 소문자 변환)
+    const fullstackFw = toFrameworkId(stack.unified?.name);
+    const backendFw   = toFrameworkId(stack.backend?.name);
+    const frontendFw  = toFrameworkId(stack.frontend?.name);
+
+    /*
+     * [아키텍처 타입 자동 판정]
+     * - fullstack_framework 있음            → FULL_STACK (통합 프레임워크, 카드 1장)
+     * - backend + frontend 둘 다 있음       → FULL_STACK (분리 생성, 카드 2장)
+     * - backend / frontend 중 하나만 있음   → CLIENT_SERVER (단일 생성, 카드 1장)
+     */
+    const hasBoth = !!backendFw && !!frontendFw;
+    const hasOne  = (!!backendFw || !!frontendFw) && !hasBoth;
+    const archType: string = (fullstackFw || hasBoth)
+      ? 'FULL_STACK'
+      : (hasOne ? 'CLIENT_SERVER' : 'FULL_STACK');
+
     //DTO 규격 매핑
     const requestDto: ProjectCreateRequestDto = {
       projectName: formData.projectName || "New_Project",
-      //백엔드 멀티 프레임워크 빌드 인프라 뚫리면 아래 주석을 풀고 기존 코드 지울것
-      framework: "spring-boot", 
-      /* framework: formData.finalAnalysis.architecture_type === 'FULL_STACK' 
-        ? formData.finalAnalysis.recommended_stack.unified?.name || ""
-        : formData.finalAnalysis.recommended_stack.backend?.name || "", 
-      */
-      language: formData.finalAnalysis.programming_language.value,
+      architecture_type: archType,
+
+      // FULL_STACK 통합 프레임워크 케이스
+      fullstack_framework: fullstackFw,
+      fullstack_language: fullstackFw
+        ? formData.finalAnalysis.programming_language.value
+        : "",
+
+      // 분리(backend/frontend) 케이스 - 채워진 쪽만 값이 들어감
+      backend_framework: backendFw,
+      frontend_framework: frontendFw,
+      backend_language: backendFw ? "python" : "",
+      frontend_language: frontendFw ? "typescript" : "",
+
+      database: "SQLite",
+
       license: mappedLicense,
       model: "gemini-1.5-flash",
       prompt: formData.prompt,
-      architecture_type: formData.finalAnalysis.architecture_type
     };
+
+    //[확인용] 백엔드 전송 직전 요청 객체 로그 (테스트 끝나면 삭제 가능)
+    console.log("=== 전송 요청 객체 ===", JSON.stringify(requestDto, null, 2));
 
     try {
       // 서버로 전송
       const result = await projectService.generateProject(requestDto);
       onGenerate(result); 
       alert("프로젝트 생성이 성공적으로 요청되었습니다!");
-    } catch (error) {
+    } catch (error: any) {
       console.error("전송 에러:", error);
-      alert("서버 통신 중 오류가 발생했습니다. 주소나 네트워크 설정을 확인해주세요.");
+      if (error?.response?.status === 429) {
+        alert("요청이 일시적으로 제한되었습니다 (429).\n잠시 후 다시 시도해주세요.");
+      } else {
+        alert("서버 통신 중 오류가 발생했습니다. 주소나 네트워크 설정을 확인해주세요.");
+      }
     } finally {
       setIsGenerating(false);
     }
@@ -120,26 +176,42 @@ const CreateProject: React.FC<CreateProjectProps> = ({ onGenerate }) => {
     
     setIsAnalyzing(true);
     setTimeout(() => {
-      //가상 판별 로직: 특정 키워드가 있으면 분할형으로 추천
-      const isSplitMode = formData.prompt.includes("API") || formData.prompt.includes("분리");
+      const mode = formData.manualStackMode;
+      const isSplitMode = mode === 'backend' || mode === 'frontend';
       
       const newVersion: AnalysisVersion = {
-        one_line_summary: isSplitMode ? "독립적 모듈 기반의 스케줄 관리 API 서버" : "시니어 반려견 통합 케어 풀스택 시스템",
+        one_line_summary: isSplitMode ? "독립적 모듈 기반의 단일 컴포넌트 프로젝트" : "통합 아키텍처 기반 풀스택 시스템",
         primary_actions: ["데이터 CRUD", "알림 발송", "통계 분석"],
         core_features: [
           { name: "핵심 기능", description: "프로젝트 요구사항에 따른 맞춤형 설계" }
         ],
+        //스택 구성으로 아키텍처 타입 판정 (backend/frontend 단독 → CLIENT_SERVER)
         architecture_type: isSplitMode ? 'CLIENT_SERVER' : 'FULL_STACK',
-        app_form: { value: isSplitMode ? "Web API & Client" : "Monolithic Web App", isInferred: true },
-        programming_language: { value: isSplitMode ? "Python / TypeScript" : "Java", isInferred: true },
-        
-        //아키텍처 타입에 따른 추천 스택 주입
-        recommended_stack: isSplitMode ? {
-          backend: { name: 'FastAPI', reason: '비동기 처리를 통한 빠른 API 통신 성능 확보' },
-          frontend: { name: 'React', reason: '컴포넌트 기반의 인터랙티브한 UI 구현' }
-        } : {
-          unified: { name: 'Spring Boot', reason: '백엔드와 프론트엔드를 통합 관리하는 안정적인 아키텍처' }
+        app_form: { value: isSplitMode ? "Web API or Client" : "Full Stack Web App", isInferred: true },
+        programming_language: {
+          value: mode === 'unified' ? "Java"
+               : mode === 'backend'  ? "Python"
+               : mode === 'frontend' ? "TypeScript"
+               : "Java / TypeScript",
+          isInferred: true
         },
+        
+        //스택 구성에 따른 추천 스택 주입
+        //- unified  : 통합 프레임워크 1장
+        //- split    : backend + frontend 2장 (둘 다 → FULL_STACK)
+        //- backend  : backend 단독 1장
+        //- frontend : frontend 단독 1장
+        recommended_stack:
+          mode === 'unified' ? {
+            unified: { name: 'Spring Boot', reason: '백엔드와 프론트엔드를 통합 관리하는 안정적인 아키텍처' }
+          } : mode === 'split' ? {
+            backend:  { name: 'Spring Boot', reason: '안정적인 비즈니스 로직 처리를 위한 백엔드' },
+            frontend: { name: 'React', reason: '컴포넌트 기반의 인터랙티브한 UI 구현' }
+          } : mode === 'backend' ? {
+            backend:  { name: 'FastAPI', reason: '독립 실행되는 API 서버 단독 생성' }
+          } : {
+            frontend: { name: 'React', reason: '독립 실행되는 클라이언트 단독 생성' }
+          },
 
         prompt: formData.prompt,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -172,6 +244,29 @@ const CreateProject: React.FC<CreateProjectProps> = ({ onGenerate }) => {
                   placeholder="프로젝트 이름을 입력하세요" 
                 />
               </div>
+
+              {/* [테스트용] 스택 구성 세부 선택. LLM 연동 시 제거 또는 LLM 결과로 대체 */}
+              <div>
+                <label className="text-[10px] font-bold text-cyan-400 uppercase tracking-[0.2em] ml-1">Stack Mode (테스트용 수동 선택 - 나중에 없앨것)</label>
+                <div className="grid grid-cols-2 gap-2 mt-2">
+                  {([
+                    { key: 'unified',  label: '통합 풀스택', desc: 'Spring Boot · 카드 1장' },
+                    { key: 'split',    label: '분리 풀스택', desc: 'BE+FE · 카드 2장' },
+                    { key: 'backend',  label: '백엔드 단독', desc: 'FastAPI · 카드 1장' },
+                    { key: 'frontend', label: '프론트 단독', desc: 'React · 카드 1장' },
+                  ] as const).map(opt => (
+                    <button
+                      key={opt.key}
+                      onClick={() => setFormData({...formData, manualStackMode: opt.key})}
+                      className={`p-3 rounded-2xl border text-left transition-all ${formData.manualStackMode === opt.key ? 'bg-cyan-600/15 border-cyan-500 shadow-lg' : 'bg-white/5 border-white/10 hover:bg-white/10'}`}
+                    >
+                      <p className={`text-[11px] font-black ${formData.manualStackMode === opt.key ? 'text-cyan-400' : 'text-gray-400'}`}>{opt.label}</p>
+                      <p className="text-[9px] text-gray-500 mt-0.5">{opt.desc}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <div className="flex-1 flex flex-col relative min-h-0">
                 <div className="flex justify-between items-center mb-2 shrink-0">
                   <div className="flex gap-2">
@@ -195,7 +290,7 @@ const CreateProject: React.FC<CreateProjectProps> = ({ onGenerate }) => {
             </div>
                 <textarea 
                   className="flex-1 bg-white/5 border border-white/10 rounded-2xl p-6 outline-none focus:border-purple-500 resize-none transition-all text-sm leading-relaxed custom-scrollbar shadow-inner" 
-                  placeholder="아이디어를 입력하세요. 가이드를 참고하면 더 정확한 분석이 가능합니다.&#10;&#10;📢 [팀원 테스트 안내]&#10;• 프롬프트에 'API' 또는 '분리'를 포함하면 ➡️ 프론트-백 분할 모드 (2개 카드)&#10;• 위 키워드가 없으면 ➡️ 풀스택 통합 모드 (1개 카드)"
+                  placeholder="아이디어를 입력하세요. 가이드를 참고하면 더 정확한 분석이 가능합니다.&#10;&#10;📢 [테스트 안내]&#10;• 위의 Stack Mode 토글로 풀스택/단일 구성을 직접 선택할 수 있습니다.&#10;• 통합 풀스택/단일은 카드 1장, 분리 풀스택은 카드 2장으로 표시됩니다."
                   value={formData.prompt}
                   onChange={(e) => setFormData({...formData, prompt: e.target.value})}
                 />
@@ -351,7 +446,7 @@ const CreateProject: React.FC<CreateProjectProps> = ({ onGenerate }) => {
           <div className="flex flex-col h-full animate-in fade-in slide-in-from-right-8 duration-500">
             <div className="mb-45 text-center shrink-0">
               <h3 className={`text-[11px] font-black uppercase tracking-[0.4em] mb-2 ${current?.architecture_type === 'FULL_STACK' ? 'text-purple-400' : 'text-blue-400'}`}>
-                {current?.architecture_type === 'FULL_STACK' ? 'Unified Framework Recommendation' : 'Decoupled Stack Selection'}
+                {current?.architecture_type === 'FULL_STACK' ? 'Full Stack Recommendation' : 'Single Component Selection'}
               </h3>
               <p className="text-gray-400 text-xs italic font-medium">프로젝트 성격에 최적화된 아키텍처 스택입니다.</p>
             </div>
@@ -364,8 +459,8 @@ const CreateProject: React.FC<CreateProjectProps> = ({ onGenerate }) => {
               <div className="p-2 bg-blue-500/20 rounded-lg text-blue-400 shrink-0"><Info size={14}/></div>
               <p className="text-[12px] text-gray-400 leading-relaxed font-medium">
                 {current?.architecture_type === 'FULL_STACK' 
-                  ? "백엔드와 프론트엔드가 통합된 구조로 빠른 개발과 관리가 가능합니다." 
-                  : "서버와 클라이언트가 분리되어 독립적인 확장성과 유지보수성을 제공합니다."}
+                  ? "백엔드와 프론트엔드가 모두 포함된 완전한 웹 애플리케이션 구조입니다." 
+                  : "서버 또는 클라이언트 단일 컴포넌트로 구성된 독립 프로젝트입니다."}
               </p>
             </div>
           </div>

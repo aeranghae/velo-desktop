@@ -3,12 +3,17 @@ import API from './index';
 //ProjectCreateRequestDto 규격에 맞춘 타입 정의
 export interface ProjectCreateRequestDto {
   projectName: string;
-  framework: string;
-  language: string;
+  architecture_type: string;
+  fullstack_framework: string;
+  backend_framework: string;
+  frontend_framework: string;
+  fullstack_language: string;
+  backend_language: string;
+  frontend_language: string;
+  database: string;
   license: string;
   model: string;
   prompt: string;
-  architecture_type: string;
 }
 
 //ProjectResponseDto 규격에 맞춘 타입 정의
