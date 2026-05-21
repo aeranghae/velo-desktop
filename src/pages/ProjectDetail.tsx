@@ -200,13 +200,6 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projectUuid, generatingPr
     
     try {
       setIsTreeLoading(true); // 로딩 토글 모션
-      
-      /** [참고용 백엔드 API 명세 연동 가이드라인 주석]
-       * await axios.put(`(주소 넣기))`, {
-       * description: descriptionInput
-       * }, { headers: { Authorization: `Bearer ${token}` } });
-       */
-      
       setIsEditingDescription(false);
       alert("프로젝트의 상세 명세(Description)가 성공적으로 업데이트되었습니다.");
     } catch (err) {
@@ -360,7 +353,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projectUuid, generatingPr
         {viewMode === 'build' ? (
           <div className="h-full animate-in zoom-in-95 duration-300">
             <ProcessingView 
-              isGenerating={isDummyProject} 
+              projectUuid={projectUuid}
               onComplete={() => setViewMode('code')} 
             />
           </div>

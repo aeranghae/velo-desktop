@@ -1,5 +1,8 @@
 import API from './index';
 
+const BACKEND_URL = 'https://oxxultus.cloud';
+const TOKEN_KEY = 'aeranghae_token';
+
 // 실시간 로그 프로젝트 상태 타입
 export type ProjectStatus = 'CREATED' | 'ANALYZING' | 'GENERATING' | 'COMPLETED' | 'FAILED';
 
@@ -116,6 +119,37 @@ export const projectService = {
       console.error("초기 로그 조회 에러:", error);
       throw error;
     }
+  },
+
+  // (로그) 실시간 공정 로그 SSE 스트림 연결
+  // onLog: "레벨||시간||메시지" 파싱 결과를 한 줄씩 전달
+  // onError: 스트림 종료/에러 시 호출 (최종 상태 재조회용)
+  // 반환값: 연결을 끊을 수 있는 EventSource 객체
+  connectProjectLogStream: (
+    uuid: string,
+    onLog: (line: string) => void,
+    onError: () => void
+  ): EventSource => {
+    const token = localStorage.getItem(TOKEN_KEY) || '';
+    // EventSource는 헤더를 못 보내므로 토큰을 쿼리 파라미터로 전달
+    const url = `${BACKEND_URL}/api/projects/${uuid}/logs/stream?token=${encodeURIComponent(token)}`;
+    const eventSource = new EventSource(url);
+
+    eventSource.addEventListener('log-stream', (event: MessageEvent) => {
+      // 데이터 형식: "레벨||시간||메시지"
+      const parts = String(event.data).split('||');
+      const level   = parts[0] ?? '';
+      const time    = parts[1] ?? '';
+      const message = parts[2] ?? '';
+      onLog(`[${level}][${time}] ${message}`);
+    });
+
+    eventSource.onerror = () => {
+      eventSource.close();
+      onError();
+    };
+
+    return eventSource;
   },
 
 
