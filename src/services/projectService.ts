@@ -32,6 +32,7 @@ export interface ProjectArchitectureResponse {
 // ProjectCreateRequestDto 규격에 맞춘 타입 정의
 export interface ProjectCreateRequestDto {
   projectName: string;
+  artifact: string;
   architecture_type: string;
   fullstack_framework: string;
   backend_framework: string;
@@ -122,7 +123,7 @@ export const projectService = {
     try {
       const requestBody: ProjectAnalysisRequest = { idea };
       
-      const response = await API.post('/api/storage/projects/analyze', requestBody);
+      const response = await API.post('/api/llm/projects/analyze', requestBody);
       return response.data;
     } catch (error) {
       console.error("프로젝트 분석 API 에러 수신:", error);

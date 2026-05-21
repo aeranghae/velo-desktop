@@ -12,7 +12,6 @@ interface CreateProjectProps {
   onGenerate: (data: any) => void;
 }
 
-// llm 도메인 모델에 맞춘 상세 분석 결과 타입
 interface AnalysisVersion {
   one_line_summary: string;
   primary_actions: string[];
@@ -40,12 +39,12 @@ const CreateProject: React.FC<CreateProjectProps> = ({ onGenerate }) => {
 
   const [formData, setFormData] = useState({
     projectName: '',
+    artifact: 'autostudio',
     prompt: '',
     analysisHistory: [] as AnalysisVersion[],
     selectedHistoryIdx: -1,
     finalAnalysis: null as AnalysisVersion | null,
     license: 'MIT',
-    manualStackMode: 'unified' as 'unified' | 'split' | 'backend' | 'frontend',
   });
 
   const licenseGuideTexts: { [key: string]: string } = {
@@ -75,6 +74,7 @@ const CreateProject: React.FC<CreateProjectProps> = ({ onGenerate }) => {
 
   const handleGenerateProject = async () => {
     if (!formData.finalAnalysis) return alert("요구사항 분석을 먼저 완료해주세요!");
+    if (!formData.artifact.trim()) return alert("Artifact 이름을 입력해주세요!");
 
     setIsGenerating(true);
 
@@ -96,6 +96,7 @@ const CreateProject: React.FC<CreateProjectProps> = ({ onGenerate }) => {
 
     const requestDto: ProjectCreateRequestDto = {
       projectName: formData.projectName || "New_Project",
+      artifact: formData.artifact, 
       architecture_type: archType,
       fullstack_framework: fullstackFw,
       fullstack_language: fullstackFw ? formData.finalAnalysis.programming_language.value : "",
@@ -178,7 +179,7 @@ const CreateProject: React.FC<CreateProjectProps> = ({ onGenerate }) => {
       if (error?.response?.status === 429) {
         alert("분석 요청이 일시적으로 제한되었습니다 (429).\n잠시 후 다시 시도해주세요.");
       } else {
-        alert("요구사항 분석 중 오류가 발생했습니다. 주소 연동단 규격을 재검사 중입니다.");
+        alert("요구사항 분석 중 오류가 발생했습니다. 서버 보안 응답 대기 중입니다.");
       }
     } finally {
       setIsAnalyzing(false);
@@ -192,37 +193,33 @@ const CreateProject: React.FC<CreateProjectProps> = ({ onGenerate }) => {
         return (
           <div className="flex gap-8 h-full animate-in fade-in slide-in-from-right-8 duration-500">
             <div className="flex-[1.2] flex flex-col gap-6">
-              <div>
-                <label className="text-[10px] font-bold text-blue-400 uppercase tracking-[0.2em] ml-1">Project Name</label>
-                <input 
-                  type="text" 
-                  value={formData.projectName}
-                  onChange={(e) => setFormData({...formData, projectName: e.target.value})}
-                  className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 mt-2 outline-none focus:border-blue-500 transition-all font-medium" 
-                  placeholder="프로젝트 이름을 입력하세요" 
-                />
-              </div>
-
-              <div>
-                <label className="text-[10px] font-bold text-cyan-400 uppercase tracking-[0.2em] ml-1">Stack Mode (테스트용 수동 선택 - 나중에 없앨것)</label>
-                <div className="grid grid-cols-2 gap-2 mt-2">
-                  {([
-                    { key: 'unified',  label: '통합 풀스택', desc: 'Spring Boot · 카드 1장' },
-                    { key: 'split',    label: '분리 풀스택', desc: 'BE+FE · 카드 2장' },
-                    { key: 'backend',  label: '백엔드 단독', desc: 'FastAPI · 카드 1장' },
-                    { key: 'frontend', label: '프론트 단독', desc: 'React · 카드 1장' },
-                  ] as const).map(opt => (
-                    <button
-                      key={opt.key}
-                      onClick={() => setFormData({...formData, manualStackMode: opt.key})}
-                      className={`p-3 rounded-2xl border text-left transition-all ${formData.manualStackMode === opt.key ? 'bg-cyan-600/15 border-cyan-500 shadow-lg' : 'bg-white/5 border-white/10 hover:bg-white/10'}`}
-                    >
-                      <p className={`text-[11px] font-black ${formData.manualStackMode === opt.key ? 'text-cyan-400' : 'text-gray-400'}`}>{opt.label}</p>
-                      <p className="text-[9px] text-gray-500 mt-0.5">{opt.desc}</p>
-                    </button>
-                  ))}
+              
+              {/* 인풋 영역 반반 분할 레이아웃 */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-[10px] font-bold text-blue-400 uppercase tracking-[0.2em] ml-1">Project Name</label>
+                  <input 
+                    type="text" 
+                    value={formData.projectName}
+                    onChange={(e) => setFormData({...formData, projectName: e.target.value})}
+                    className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 mt-2 outline-none focus:border-blue-500 transition-all font-medium text-sm" 
+                    placeholder="프로젝트명 입력" 
+                  />
+                </div>
+                
+                <div>
+                  <label className="text-[10px] font-bold text-emerald-400 uppercase tracking-[0.2em] ml-1">Artifact (소문자/공백제거 자동)</label>
+                  <input 
+                    type="text" 
+                    value={formData.artifact}
+                    onChange={(e) => setFormData({...formData, artifact: e.target.value.toLowerCase().replace(/\s/g, '')})}
+                    className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 mt-2 outline-none focus:border-emerald-500 transition-all font-mono text-sm tracking-tight text-emerald-200" 
+                    placeholder="예: autostudio" 
+                  />
                 </div>
               </div>
+
+              {/* 🟢 [완벽 삭제]: 눈에 가시 같던 수동 가짜 Stack Mode 제어판(Grid 박스 구역) 통째로 영구 도려냄 */}
 
               <div className="flex-1 flex flex-col relative min-h-0">
                 <div className="flex justify-between items-center mb-2 shrink-0">
@@ -352,13 +349,16 @@ const CreateProject: React.FC<CreateProjectProps> = ({ onGenerate }) => {
               id: 'unified-stack',
               hue: 280, saturation: 70, lightness: 60,
               content: (
-                <div className="p-12 flex flex-col items-center text-center h-full relative group">
+                <div className="p-12 flex flex-col items-center text-center h-[340px] relative group overflow-hidden">
                   <div className="absolute top-8 left-1/2 -translate-x-1/2 text-[9px] font-black text-purple-400 uppercase tracking-[0.3em]">Full Stack Architecture</div>
-                  <div className="w-24 h-24 bg-purple-500/10 rounded-[32px] flex items-center justify-center text-purple-400 mb-8 mt-6 border border-purple-500/20">
+                  <div className="w-24 h-24 bg-purple-500/10 rounded-[32px] flex items-center justify-center text-purple-400 mb-6 mt-6 border border-purple-500/20 shrink-0">
                     <Sparkles size={44} />
                   </div>
-                  <h4 className="text-3xl font-black mb-3 tracking-tighter italic uppercase text-white">{current.recommended_stack.unified.name}</h4>
-                  <p className="text-xs text-gray-500 leading-relaxed px-6">"{current.recommended_stack.unified.reason}"</p>
+                  <h4 className="text-3xl font-black mb-3 tracking-tighter italic uppercase text-white shrink-0">{current.recommended_stack.unified.name}</h4>
+                  
+                  <div className="flex-grow w-full overflow-y-auto custom-scrollbar px-2 text-left">
+                    <p className="text-xs text-gray-500 leading-relaxed">"{current.recommended_stack.unified.reason}"</p>
+                  </div>
                 </div>
               ),
             });
@@ -368,13 +368,16 @@ const CreateProject: React.FC<CreateProjectProps> = ({ onGenerate }) => {
                 id: 'backend-stack',
                 hue: 210, saturation: 80, lightness: 55,
                 content: (
-                  <div className="p-10 flex flex-col items-center text-center h-full relative">
+                  <div className="p-10 flex flex-col items-center text-center h-[340px] relative overflow-hidden">
                     <div className="absolute top-8 left-1/2 -translate-x-1/2 text-[9px] font-black text-blue-400 uppercase tracking-[0.3em]">Backend</div>
-                    <div className="w-20 h-20 bg-blue-500/10 rounded-[28px] flex items-center justify-center text-blue-400 mb-6 mt-6 border border-blue-500/20">
+                    <div className="w-20 h-20 bg-blue-500/10 rounded-[28px] flex items-center justify-center text-blue-400 mb-6 mt-6 border border-blue-500/20 shrink-0">
                       <Server size={36} />
                     </div>
-                    <h4 className="text-2xl font-black mb-2 italic uppercase text-white">{current.recommended_stack.backend.name}</h4>
-                    <p className="text-[11px] text-gray-500 leading-relaxed px-4">"{current.recommended_stack.backend.reason}"</p>
+                    <h4 className="text-2xl font-black mb-2 italic uppercase text-white shrink-0">{current.recommended_stack.backend.name}</h4>
+                    
+                    <div className="flex-grow w-full overflow-y-auto custom-scrollbar px-2 text-left">
+                      <p className="text-[11px] text-gray-500 leading-relaxed">"{current.recommended_stack.backend.reason}"</p>
+                    </div>
                   </div>
                 ),
               });
@@ -384,13 +387,16 @@ const CreateProject: React.FC<CreateProjectProps> = ({ onGenerate }) => {
                 id: 'frontend-stack',
                 hue: 180, saturation: 80, lightness: 50,
                 content: (
-                  <div className="p-10 flex flex-col items-center text-center h-full relative">
+                  <div className="p-10 flex flex-col items-center text-center h-[340px] relative overflow-hidden">
                     <div className="absolute top-8 left-1/2 -translate-x-1/2 text-[9px] font-black text-cyan-400 uppercase tracking-[0.3em]">Frontend</div>
-                    <div className="w-20 h-20 bg-cyan-500/10 rounded-[28px] flex items-center justify-center text-cyan-400 mb-6 mt-6 border border-cyan-500/20">
+                    <div className="w-20 h-20 bg-cyan-500/10 rounded-[28px] flex items-center justify-center text-cyan-400 mb-6 mt-6 border border-cyan-500/20 shrink-0">
                       <Globe size={36} />
                     </div>
-                    <h4 className="text-2xl font-black mb-2 italic uppercase text-white">{current.recommended_stack.frontend.name}</h4>
-                    <p className="text-[11px] text-gray-500 leading-relaxed px-4">"{current.recommended_stack.frontend.reason}"</p>
+                    <h4 className="text-2xl font-black mb-2 italic uppercase text-white shrink-0">{current.recommended_stack.frontend.name}</h4>
+                    
+                    <div className="flex-grow w-full overflow-y-auto custom-scrollbar px-2 text-left">
+                      <p className="text-[11px] text-gray-500 leading-relaxed">"{current.recommended_stack.frontend.reason}"</p>
+                    </div>
                   </div>
                 ),
               });
@@ -481,6 +487,9 @@ const CreateProject: React.FC<CreateProjectProps> = ({ onGenerate }) => {
               <div className="grid grid-cols-2 gap-10">
                 <div className="space-y-6 text-sm">
                   <div><p className="text-[10px] text-gray-500 font-bold uppercase mb-1.5 tracking-widest">Project Identity</p><p className="text-xl font-bold">{formData.projectName || 'New Project'}</p></div>
+                  <div><p className="text-[10px] text-gray-500 font-bold uppercase mb-1.5 tracking-widest">Build Artifact Target</p>
+                    <p className="text-sm font-mono font-bold text-orange-400">{formData.artifact}</p>
+                  </div>
                   <div><p className="text-[10px] text-gray-500 font-bold uppercase mb-1.5 tracking-widest">Stack Architecture</p>
                     <p className="text-sm font-bold text-emerald-400 uppercase">{formData.finalAnalysis?.architecture_type.replace('_', ' ')}</p>
                   </div>
