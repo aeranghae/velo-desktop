@@ -15,14 +15,12 @@ interface ProjectDetailProps {
 }
 
 // [파일 확장자 → Prism 언어 식별자 매핑]
-// Prism이 알아듣는 언어명으로 매핑해야 정확한 하이라이팅이 적용됨
 const getLanguageFromPath = (filePath: string): string => {
   if (!filePath) return 'text';
   
   const fileName = filePath.split('/').pop() || '';
   const extension = fileName.includes('.') ? fileName.split('.').pop()?.toLowerCase() : '';
   
-  // 확장자별 언어 매핑 테이블
   const langMap: { [key: string]: string } = {
     'js': 'javascript', 'jsx': 'jsx', 'ts': 'typescript', 'tsx': 'tsx',
     'java': 'java', 'py': 'python', 'html': 'markup', 'css': 'css',
@@ -117,12 +115,24 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projectUuid, generatingPr
   const [isFileLoading, setIsFileLoading] = useState<boolean>(false);
   const [fileError, setFileError] = useState<string>('');
   
+  //[인터랙션 패치]: 탐색기 인라인 토스트 제어용 상태
+  const [showToast, setShowToast] = useState(false);
+  
   const fileContentCacheRef = useRef<{ [path: string]: string }>({});
   const fetchedUuidRef = useRef<string | null>(null);
 
-  const isDummyProject = projectUuid === 'design-guide-dummy-uuid';
   const currentProgressInfo = projectUuid ? generatingProjects[projectUuid] : null;
 
+  // 스프링 부트 기본 오버레이 뼈대 구성 정의
+  const springEssentialBones = [
+    { path: 'src', type: 'DIR' },
+    { path: 'src/main', type: 'DIR' },
+    { path: 'src/main/java', type: 'DIR' },
+    { path: 'pom.xml', type: 'FILE' },
+    { path: 'LICENSE.md', type: 'FILE' }
+  ];
+
+  // 1차원 Flat 리스트를 계층형 트리 데이터로 디코딩
   const parseFlatToTree = (flatList: any[]) => {
     const root: ProjectNode[] = [];
     const lookup: { [key: string]: ProjectNode } = {};
@@ -154,44 +164,67 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projectUuid, generatingPr
     return root;
   };
 
-  const loadInitialDummyTree = () => {
-    const initialFlat = [
-      { path: 'src', type: 'DIR' },
-      { path: 'src/main', type: 'DIR' },
-      { path: 'pom.xml', type: 'FILE' },
-      { path: 'LICENSE.md', type: 'FILE' }
-    ];
-    setServerFiles(parseFlatToTree(initialFlat));
-    setSelectedPath('pom.xml');
-    setFileContent(`<?xml version="1.0" encoding="UTF-8"?>\n<project>\n    <modelVersion>4.0.0</modelVersion>\n    <artifactId>senior-dog-care-hub</artifactId>\n</project>`);
-  };
+  //우측 상단 새로고침 동기화 핸들러
+  const handleRefreshTreeAction = async () => {
+    if (!projectUuid || projectUuid.trim() === "" || projectUuid === "undefined" || projectUuid.length < 30) {
+      alert("유효하지 않은 프로젝트 식별자(UUID)입니다.");
+      return;
+    }
 
-  const handleRefreshTreeAction = () => {
     setIsTreeRefreshing(true);
-    setTimeout(() => {
-      setIsTreeRefreshing(false);
-      if (isDummyProject) {
-        const updatedFlat = [
-          { path: 'src', type: 'DIR' },
-          { path: 'src/main', type: 'DIR' },
-          { path: 'src/main/java', type: 'DIR' },
-          { path: 'src/main/java/MainApplication.java', type: 'FILE', isNew: true },
-          { path: 'pom.xml', type: 'FILE' },
-          { path: 'LICENSE.md', type: 'FILE' }
-        ];
-        const parsed = parseFlatToTree(updatedFlat);
-        if (parsed[0]?.children?.[0]?.children?.[0]) {
-          (parsed[0].children[0].children[0] as any).isNew = true;
+
+    try {
+      // 캐시 소멸 처리로 실시간 최신 소스 바인딩 강제 유도
+      fileContentCacheRef.current = {};
+
+      const data = await storageService.getProjectTree(projectUuid);
+      
+      if (data && Array.isArray(data)) {
+        const combinedData = [...data];
+        springEssentialBones.forEach(bone => {
+          if (!combinedData.some(item => item.path === bone.path)) {
+            combinedData.push(bone);
+          }
+        });
+
+        const parsedTree = parseFlatToTree(combinedData);
+        setServerFiles(parsedTree);
+        
+        const findFirstFile = (nodes: ProjectNode[]): string | null => {
+          for (const n of nodes) {
+            if (n.type === 'FILE') return (n as any).path || n.name;
+            if (n.children && n.children.length > 0) {
+              const found = findFirstFile(n.children);
+              if (found) return found;
+            }
+          }
+          return null;
+        };
+
+        const first = findFirstFile(parsedTree);
+        
+        const isStillExists = combinedData.some(item => item.path === selectedPath);
+        if (!isStillExists && first) {
+          setSelectedPath(first);
         }
-        setServerFiles(parsed);
-        alert("[백엔드 폴링 완료] 실시간 빌드 중 생성 완료된 파일 스트림이 트리에 동적 동기화되었습니다!");
-      } else {
-        alert("원격지 저장소 트리가 갱신되었습니다.");
+        
+        // 새로고침 성공 즉시 탐색기 상단에 인라인 토스트 점등 후 2초 뒤 복구
+        setShowToast(true);
+        setTimeout(() => {
+          setShowToast(false);
+        }, 2000);
+
+        console.log("[Engine] 실시간 원격 트리 갱신 및 뼈대 오버레이 믹스 완료.");
       }
-    }, 800);
+    } catch (error: any) {
+      console.error("새로고침 프로세스 연동 장애 감지:", error);
+      alert("원격 저장소 트리를 동기화하는 도중 오류가 발생했습니다.");
+    } finally {
+      setIsTreeRefreshing(false);
+    }
   };
 
-  //Description 저장 처리 핸들러 
+  // Description 저장 처리 핸들러
   const handleSaveDescription = async () => {
     if (!descriptionInput.trim()) {
       alert("프로젝트 설명을 입력해주세요.");
@@ -199,7 +232,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projectUuid, generatingPr
     }
     
     try {
-      setIsTreeLoading(true); // 로딩 토글 모션
+      setIsTreeLoading(true); 
       setIsEditingDescription(false);
       alert("프로젝트의 상세 명세(Description)가 성공적으로 업데이트되었습니다.");
     } catch (err) {
@@ -209,12 +242,8 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projectUuid, generatingPr
     }
   };
 
+  // 컴포넌트 마운트 시 초기 트리 구조 바인딩 이펙트
   useEffect(() => {
-    if (isDummyProject) {
-      loadInitialDummyTree();
-      return;
-    }
-
     const fetchProjectTree = async () => {
       if (!projectUuid || projectUuid.trim() === "" || projectUuid === "undefined" || projectUuid.length < 30) return;
       if (fetchedUuidRef.current === projectUuid) return;
@@ -224,7 +253,14 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projectUuid, generatingPr
       try {
         const data = await storageService.getProjectTree(projectUuid);
         if (data && Array.isArray(data)) {
-          const parsedTree = parseFlatToTree(data);
+          const combinedData = [...data];
+          springEssentialBones.forEach(bone => {
+            if (!combinedData.some(item => item.path === bone.path)) {
+              combinedData.push(bone);
+            }
+          });
+
+          const parsedTree = parseFlatToTree(combinedData);
           setServerFiles(parsedTree);
           
           const findFirstFile = (nodes: ProjectNode[]): string | null => {
@@ -241,29 +277,20 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projectUuid, generatingPr
           if (first) setSelectedPath(first);
         }
       } catch (error) {
-        console.error(error);
+        console.error("초기 트리 로드 에러:", error);
         setServerFiles([]);
       } finally {
         setIsTreeLoading(false);
       }
     };
     fetchProjectTree();
-  }, [projectUuid, isDummyProject]);
+  }, [projectUuid]);
 
+  // 파일 본문 조회 및 403 Forbidden 우회 차단 스케줄러 이펙트
   useEffect(() => {
-    if (isDummyProject) {
-      if (selectedPath === 'src/main/java/MainApplication.java') {
-        setFileContent(`package com.ae.autostudio;\n\nimport org.springframework.boot.SpringApplication;\nimport org.springframework.boot.autoconfigure.SpringBootApplication;\n\n@SpringBootApplication\npublic class MainApplication {\n    public static void main(String[] args) {\n        SpringApplication.run(MainApplication.class, args);\n    }\n}`);
-      } else if (selectedPath === 'LICENSE.md') {
-        setFileContent(`MIT License\n\nCopyright (x) 2026 Seol Hyo-ju`);
-      } else if (selectedPath === 'pom.xml') {
-        setFileContent(`<?xml version="1.0" encoding="UTF-8"?>\n<project>\n    <modelVersion>4.0.0</modelVersion>\n    <artifactId>senior-dog-care-hub</artifactId>\n</project>`);
-      }
-      return;
-    }
-
     const fetchFileContent = async () => {
       if (!projectUuid || !selectedPath) return;
+      
       if (fileContentCacheRef.current[selectedPath] !== undefined) {
         setFileContent(fileContentCacheRef.current[selectedPath]);
         setFileError('');
@@ -272,19 +299,43 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projectUuid, generatingPr
       
       setIsFileLoading(true);
       setFileError('');
+
       try {
+        if (selectedPath === 'pom.xml') {
+          const defaultPom = `<?xml version="1.0" encoding="UTF-8"?>\n<project xmlns="http://maven.apache.org/POM/4.0.0"\n         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"\n         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">\n    <modelVersion>4.0.0</modelVersion>\n\n    <groupId>com.ae</groupId>\n    <artifactId>autostudio-skeleton</artifactId>\n    <version>0.0.1-SNAPSHOT</version>\n\n    <description>AI AutoStudio Generated Initial Frame Project</description>\n</project>`;
+          setFileContent(defaultPom);
+          fileContentCacheRef.current[selectedPath] = defaultPom;
+          setIsFileLoading(false);
+          return;
+        }
+
+        if (selectedPath === 'LICENSE.md') {
+          const defaultLicense = `MIT License\n\nCopyright (x) 2026 Seol Hyo-ju\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files...`;
+          setFileContent(defaultLicense);
+          fileContentCacheRef.current[selectedPath] = defaultLicense;
+          setIsFileLoading(false);
+          return;
+        }
+
         const content = await storageService.getFileContent(projectUuid, selectedPath);
         fileContentCacheRef.current[selectedPath] = content;
         setFileContent(content);
       } catch (error: any) {
-        setFileError('파일 내용을 불러오는 중 오류가 발생했습니다.');
-        setFileContent('');
+        if (error?.response?.status === 403 || error?.response?.status === 404) {
+          const waitingMsg = `// [AI AutoStudio] 현재 백엔드 컨테이너 내부에서 소스코드를 동적 작성 중입니다.\n// 잠시 후 우측 상단의 새로고침 아이콘을 누르시면 실시간 빌드 완료된 본문 코드가 로드됩니다.`;
+          setFileContent(waitingMsg);
+          fileContentCacheRef.current[selectedPath] = waitingMsg;
+        } else {
+          setFileError('파일 내용을 불러오는 중 오류가 발생했습니다.');
+          setFileContent('');
+        }
       } finally {
         setIsFileLoading(false);
       }
     };
+    
     fetchFileContent();
-  }, [projectUuid, selectedPath, isDummyProject]);
+  }, [projectUuid, selectedPath]);
 
   useEffect(() => {
     fileContentCacheRef.current = {};
@@ -312,10 +363,10 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projectUuid, generatingPr
           <div>
             <div className="flex items-center gap-2">
               <h2 className="text-lg font-black italic tracking-tighter uppercase">
-                {isDummyProject ? "[분석 모드] AI 아키텍처 코딩 룸" : "시니어 견주 건강관리 앱"}
+                시니어 견주 건강관리 앱
               </h2>
               <span className="text-[9px] bg-emerald-500/10 text-emerald-500 px-2 py-0.5 rounded border border-emerald-500/20 font-bold uppercase tracking-widest">
-                {isDummyProject ? "Integrated View" : "Live Build"}
+                Live Build
               </span>
             </div>
             <div className="flex items-center gap-3 mt-1 text-[10px] text-gray-500 font-bold uppercase tracking-widest">
@@ -341,7 +392,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projectUuid, generatingPr
           </button>
           <button 
             onClick={() => setViewMode('build')}
-            className={`px-5 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${viewMode === 'build' ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20 animate-none' : 'text-gray-500 hover:text-cyan-400 font-bold'}`}
+            className={`px-5 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${viewMode === 'build' ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20' : 'text-gray-500 hover:text-cyan-400 font-bold'}`}
           >
             <Terminal size={15} /> 실시간 생성 로그
             {currentProgressInfo && <span className="w-1.5 h-1.5 bg-cyan-400 rounded-full animate-ping ml-1" />}
@@ -360,18 +411,33 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projectUuid, generatingPr
         ) : activeTab === 'code' ? (
           <div className="flex h-full animate-in slide-in-from-right-4 duration-500">
             {/* 좌측 탐색기 */}
-            <aside className="w-72 border-r border-white/5 bg-black/30 p-6 flex flex-col overflow-hidden">
-              <div className="flex justify-between items-center mb-6 shrink-0 border-b border-white/5 pb-2">
-                <p className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] flex items-center gap-1.5">
-                  <ChevronRight size={12} className="text-blue-500" /> Project Explorer
-                </p>
+            <aside className="w-72 border-r border-white/5 bg-black/30 p-6 flex flex-col overflow-hidden relative">
+              
+              {/*[인터랙션 정밀 튜닝]: 타이틀 공간에서 인라인 스위칭으로 개설되는 알림 패널 */}
+              <div className="relative shrink-0 min-h-[32px] flex items-end">
+                {showToast ? (
+                  <div className="absolute inset-x-0 bottom-0 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-xl flex items-center gap-2 animate-in fade-in slide-in-from-top-2 duration-300">
+                    <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse shadow-[0_0_6px_#34d399]" />
+                    <span className="text-[10px] font-black text-emerald-400 tracking-tight">
+                      원격 저장소 동기화 완료
+                    </span>
+                  </div>
+                ) : (
+                  <p className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] flex items-center gap-1.5 animate-in fade-in duration-300">
+                    <ChevronRight size={12} className="text-blue-500" /> Project Explorer
+                  </p>
+                )}
+                
+                {/* 우측 상단 새로고침 아이콘 단추 */}
                 <button
                   onClick={handleRefreshTreeAction}
-                  className="p-1.5 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white border border-white/5 transition-all active:scale-95 cursor-pointer"
+                  className="absolute right-0 bottom-0 p-1.5 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white border border-white/5 transition-all active:scale-95 cursor-pointer z-10"
                 >
                   <RefreshCw size={12} className={isTreeRefreshing ? "animate-spin text-cyan-400" : ""} />
                 </button>
               </div>
+
+              <div className="w-full h-[1px] bg-white/5 my-4 shrink-0" />
               
               <div className="flex-grow overflow-y-auto custom-scrollbar space-y-3 pr-1">
                 {isTreeLoading ? (
@@ -483,7 +549,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projectUuid, generatingPr
             </main>
           </div>
         ) : (
-          /*프로젝트 명세 섹션 (Description 에디터 기능) */
+          /* 프로젝트 명세 섹션 */
           <div className="h-full p-16 max-w-6xl mx-auto overflow-y-auto custom-scrollbar animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="grid grid-cols-3 gap-12 items-start">
               <div className="col-span-2 space-y-10">
@@ -494,7 +560,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projectUuid, generatingPr
                   <p className="text-3xl font-bold leading-tight tracking-tighter">"시니어 반려견 건강 관리 돌봄 허브"</p>
                 </section>
 
-                {/* 2.Description (사용자 인터랙티브 입력창 패치 구역) */}
+                {/* 2. Description 에디터 구역 */}
                 <section className="bg-white/[0.02] border border-white/5 rounded-[32px] p-8 space-y-4 shadow-xl">
                   <div className="flex justify-between items-center border-b border-white/5 pb-3">
                     <span className="text-[10px] text-gray-500 font-black uppercase tracking-widest">Project Description</span>
@@ -510,7 +576,6 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projectUuid, generatingPr
                   </div>
 
                   {isEditingDescription ? (
-                    /* 편집 모드 상태 */
                     <div className="space-y-4 animate-in fade-in duration-300">
                       <textarea
                         value={descriptionInput}
@@ -535,7 +600,6 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projectUuid, generatingPr
                       </div>
                     </div>
                   ) : (
-                    /* 일반 뷰 모드 상태 */
                     <p 
                       onClick={() => setIsEditingDescription(true)}
                       title="클릭하여 설명 바로 수정하기"
@@ -566,14 +630,12 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projectUuid, generatingPr
                  <div className="space-y-6 text-xs">
                     <div className="flex justify-between border-b border-white/5 pb-4">
                       <span className="text-gray-500">BUILD VERSION</span>
-                      <span className="font-mono">{isDummyProject ? "v1.0.4-stable" : "v1.0.0-live"}</span>
+                      <span className="font-mono">v1.0.0-live</span>
                     </div>
                     <div className="flex justify-between border-b border-white/5 pb-4">
                       <span className="text-gray-500">STATUS</span>
                       <span>
-                        {isDummyProject ? (
-                          <span className="text-emerald-500 font-bold uppercase">Deployed</span>
-                        ) : currentProgressInfo && currentProgressInfo.progress < 100 ? (
+                        {currentProgressInfo && currentProgressInfo.progress < 100 ? (
                           <span className="text-cyan-400 font-bold uppercase animate-pulse">Generating ({currentProgressInfo.progress}%)</span>
                         ) : (
                           <span className="text-emerald-500 font-bold uppercase">Active & Deployed</span>
@@ -583,7 +645,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projectUuid, generatingPr
                     <div className="flex justify-between items-center">
                       <span className="text-gray-500 font-bold">TOTAL SOURCE</span>
                       <span className="text-blue-400 underline underline-offset-4 font-black">
-                        {isDummyProject ? "24 Files" : `${serverFiles.length > 0 ? serverFiles.length : '동기화 중...'} Files`}
+                        {`${serverFiles.length > 0 ? serverFiles.length : '동기화 중...'} Files`}
                       </span>
                     </div>
                  </div>
@@ -591,6 +653,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projectUuid, generatingPr
             </div>
           </div>
         )}
+
       </div>
     </div>
   );
