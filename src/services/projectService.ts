@@ -60,6 +60,7 @@ export interface ProjectResponseDto {
   model: string;
   framework: string;
   status: string;
+  description: string; 
   createdAt: string;
   lastModified: string;
   size: number;

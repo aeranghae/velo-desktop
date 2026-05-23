@@ -5,10 +5,11 @@ import { ProjectProgress } from '../App';
 
 interface LibraryProps {
   onSelectProject?: (uuid: string) => void;
-  generatingProjects?: { [uuid: string]: ProjectProgress }; 
+  generatingProjects?: { [uuid: string]: ProjectProgress };
+  activeMenu: string; 
 }
 
-const Library: React.FC<LibraryProps> = ({ onSelectProject, generatingProjects = {} }) => {
+const Library: React.FC<LibraryProps> = ({ onSelectProject, generatingProjects = {}, activeMenu }) => {
   const [projectsList, setProjectsList] = useState<ProjectResponseDto[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   
@@ -32,9 +33,13 @@ const Library: React.FC<LibraryProps> = ({ onSelectProject, generatingProjects =
     }
   };
 
+  //메뉴가 'library'로 바뀔 때마다 캐시 털어오기
   useEffect(() => {
-    fetchProjects();
-  }, []);
+    if (activeMenu === 'library') {
+      console.log("🔄 [Library] 라이브러리 메뉴 진입 감지! 최신 projects 캐시를 강제 요청합니다.");
+      fetchProjects();
+    }
+  }, [activeMenu]); 
 
   //프로젝트 ZIP 다운로드 실행 트리거
   const handleDownloadProject = async (uuid: string, projectName: string) => {
@@ -51,22 +56,22 @@ const Library: React.FC<LibraryProps> = ({ onSelectProject, generatingProjects =
     }
   };
 
-  //확장된 ProjectResponseDto 스펙에 맞춰 framework와 status 기본값 강제 매핑
   const buildDisplayList = (): ProjectResponseDto[] => {
-    const dummyGeneratingCards: ProjectResponseDto[] = Object.values(generatingProjects).map(p => ({
-      uuid: p.uuid, 
-      projectName: `[API 설계용] 아키텍처 실시간 제작 프로세스 분석 창`,
-      model: 'gemini-1.5-pro',
-      framework: 'SPRING BOOT',
-      status: 'GENERATING',    
-      createdAt: new Date().toISOString(),
-      lastModified: new Date().toISOString(),
-      size: 0,
-      fileCount: 0,
-    }));
+  const dummyGeneratingCards: ProjectResponseDto[] = Object.values(generatingProjects).map(p => ({
+    uuid: p.uuid, 
+    projectName: `[API 설계용] 아키텍처 실시간 제작 프로세스 분석 창`,
+    model: 'gemini-1.5-pro',
+    framework: 'SPRING BOOT',
+    status: 'GENERATING',    
+    description: '',          // 추가
+    createdAt: new Date().toISOString(),
+    lastModified: new Date().toISOString(),
+    size: 0,
+    fileCount: 0,
+  }));
 
-    return [...dummyGeneratingCards, ...projectsList];
-  };
+  return [...dummyGeneratingCards, ...projectsList];
+};
 
   const handleProjectClick = (item: ProjectResponseDto) => {
     if (!item || !item.uuid || editingProjectId === item.uuid) return;

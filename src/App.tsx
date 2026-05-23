@@ -159,6 +159,7 @@ function App() {
           <Library 
             onSelectProject={handleSelectProject} 
             generatingProjects={generatingProjects}
+            activeMenu={activeMenu}
           />
         )}
         

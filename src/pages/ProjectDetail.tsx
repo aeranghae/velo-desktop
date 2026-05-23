@@ -8,6 +8,7 @@ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { storageService, ProjectNode } from '../services/storageService';
 import ProcessingView from './ProcessingView';
+import { projectService } from '../services/projectService';
 
 interface ProjectDetailProps {
   projectUuid?: string; 
@@ -35,7 +36,7 @@ const getLanguageFromPath = (filePath: string): string => {
   return langMap[extension] || 'text';
 };
 
-//[재귀 트리 노드 컴포넌트] 깊이에 상관없이 모든 자식을 펼치도록 자기 자신을 호출
+// [재귀 트리 노드 컴포넌트]
 interface TreeNodeProps {
   node: ProjectNode;
   depth: number;
@@ -105,9 +106,14 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projectUuid, generatingPr
   const [modifyPrompt, setModifyPrompt] = useState('');
   const [isModifying, setIsModifying] = useState(false);
 
-  //Description 수정용 상태 
+  //프로젝트 메타 상태 정보
+  const [currentProjectName, setCurrentProjectName] = useState<string>('로딩 중...');
+  const [currentModel, setCurrentModel] = useState<string>('Gemini-3-Flash');
+  const [currentFramework, setCurrentFramework] = useState<string>('웹');
+
+  // Description 수정용 상태
   const [isEditingDescription, setIsEditingDescription] = useState(false);
-  const [descriptionInput, setDescriptionInput] = useState('시니어 반려동물의 건강 상태를 실시간으로 기록하고, 주기적인 복약 및 사료 급여 스케줄을 가족 구성원들이 상호 동기화하여 케어할 수 있는 스마트 헬스케어 동반자 시스템입니다.');
+  const [descriptionInput, setDescriptionInput] = useState('');
 
   const [serverFiles, setServerFiles] = useState<ProjectNode[]>([]);
   const [isTreeLoading, setIsTreeLoading] = useState<boolean>(false);
@@ -115,7 +121,6 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projectUuid, generatingPr
   const [isFileLoading, setIsFileLoading] = useState<boolean>(false);
   const [fileError, setFileError] = useState<string>('');
   
-  //[인터랙션 패치]: 탐색기 인라인 토스트 제어용 상태
   const [showToast, setShowToast] = useState(false);
   
   const fileContentCacheRef = useRef<{ [path: string]: string }>({});
@@ -123,7 +128,6 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projectUuid, generatingPr
 
   const currentProgressInfo = projectUuid ? generatingProjects[projectUuid] : null;
 
-  // 스프링 부트 기본 오버레이 뼈대 구성 정의
   const springEssentialBones = [
     { path: 'src', type: 'DIR' },
     { path: 'src/main', type: 'DIR' },
@@ -132,7 +136,6 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projectUuid, generatingPr
     { path: 'LICENSE.md', type: 'FILE' }
   ];
 
-  // 1차원 Flat 리스트를 계층형 트리 데이터로 디코딩
   const parseFlatToTree = (flatList: any[]) => {
     const root: ProjectNode[] = [];
     const lookup: { [key: string]: ProjectNode } = {};
@@ -164,7 +167,6 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projectUuid, generatingPr
     return root;
   };
 
-  //우측 상단 새로고침 동기화 핸들러
   const handleRefreshTreeAction = async () => {
     if (!projectUuid || projectUuid.trim() === "" || projectUuid === "undefined" || projectUuid.length < 30) {
       alert("유효하지 않은 프로젝트 식별자(UUID)입니다.");
@@ -174,13 +176,17 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projectUuid, generatingPr
     setIsTreeRefreshing(true);
 
     try {
-      // 캐시 소멸 처리로 실시간 최신 소스 바인딩 강제 유도
       fileContentCacheRef.current = {};
-
       const data = await storageService.getProjectTree(projectUuid);
       
-      if (data && Array.isArray(data)) {
-        const combinedData = [...data];
+      if (data && (data as any).description) {
+        setDescriptionInput((data as any).description);
+      }
+
+      const fileListData = Array.isArray(data) ? data : (data as any).treeList || [];
+      
+      if (Array.isArray(fileListData)) {
+        const combinedData = [...fileListData];
         springEssentialBones.forEach(bone => {
           if (!combinedData.some(item => item.path === bone.path)) {
             combinedData.push(bone);
@@ -208,13 +214,12 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projectUuid, generatingPr
           setSelectedPath(first);
         }
         
-        // 새로고침 성공 즉시 탐색기 상단에 인라인 토스트 점등 후 2초 뒤 복구
         setShowToast(true);
         setTimeout(() => {
           setShowToast(false);
         }, 2000);
 
-        console.log("[Engine] 실시간 원격 트리 갱신 및 뼈대 오버레이 믹스 완료.");
+        console.log("🔄 [Engine] 실시간 원격 트리 갱신 및 뼈대 오버레이 믹스 완료.");
       }
     } catch (error: any) {
       console.error("새로고침 프로세스 연동 장애 감지:", error);
@@ -224,36 +229,72 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projectUuid, generatingPr
     }
   };
 
-  // Description 저장 처리 핸들러
   const handleSaveDescription = async () => {
     if (!descriptionInput.trim()) {
       alert("프로젝트 설명을 입력해주세요.");
       return;
     }
     
+    if (!projectUuid || projectUuid === "undefined") {
+      alert("유효하지 않은 프로젝트 식별자입니다.");
+      return;
+    }
+    
     try {
-      setIsTreeLoading(true); 
+      setIsTreeLoading(true);
+      await storageService.updateProjectDescription(projectUuid, descriptionInput);
       setIsEditingDescription(false);
-      alert("프로젝트의 상세 명세(Description)가 성공적으로 업데이트되었습니다.");
-    } catch (err) {
-      alert("설명 업데이트 중 오류가 발생했습니다.");
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 2000);
+    } catch (err: any) {
+      console.error("Description 백엔드 연동 장애 발생:", err);
+      alert("프로젝트 명세를 서버에 저장하는 도중 오류가 발생했습니다.");
     } finally {
       setIsTreeLoading(false);
     }
   };
 
-  // 컴포넌트 마운트 시 초기 트리 구조 바인딩 이펙트
   useEffect(() => {
     const fetchProjectTree = async () => {
+      if (projectUuid === 'design-guide-dummy-uuid') {
+        setCurrentProjectName("[API 설계용] 아키텍처 실시간 제작 프로세스 분석 창");
+        setDescriptionInput("가이드용 실시간 제작 프로세스 분석 본문 명세입니다.");
+        setCurrentModel("gemini-1.5-pro");
+        setCurrentFramework("SPRING BOOT");
+        return;
+      }
+
       if (!projectUuid || projectUuid.trim() === "" || projectUuid === "undefined" || projectUuid.length < 30) return;
       if (fetchedUuidRef.current === projectUuid) return;
       fetchedUuidRef.current = projectUuid;
-      
+
       setIsTreeLoading(true);
       try {
+        // ① projects 전체 리스트에서 현재 프로젝트 데이터 맵핑 처리
+        try {
+          const projects = await projectService.getProjects();
+          const current = projects.find(p => p.uuid === projectUuid);
+
+          if (current) {
+            //이름, 설명, 엔진 모델, 프레임워크 타겟 동적 이식
+            setCurrentProjectName(current.projectName || "이름 없는 프로젝트");
+            setCurrentModel(current.model || "Gemini-3-Flash");
+            setCurrentFramework(current.framework || "Web Framework");
+            
+            if (current.description) {
+              setDescriptionInput(current.description);
+            }
+          }
+        } catch (e) {
+          console.error("프로젝트 메타정보 조회 장애 수신:", e);
+        }
+
+        // ② 트리 조회
         const data = await storageService.getProjectTree(projectUuid);
-        if (data && Array.isArray(data)) {
-          const combinedData = [...data];
+        const fileListData = Array.isArray(data) ? data : (data as any).treeList || [];
+
+        if (Array.isArray(fileListData)) {
+          const combinedData = [...fileListData];
           springEssentialBones.forEach(bone => {
             if (!combinedData.some(item => item.path === bone.path)) {
               combinedData.push(bone);
@@ -262,7 +303,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projectUuid, generatingPr
 
           const parsedTree = parseFlatToTree(combinedData);
           setServerFiles(parsedTree);
-          
+
           const findFirstFile = (nodes: ProjectNode[]): string | null => {
             for (const n of nodes) {
               if (n.type === 'FILE') return (n as any).path || n.name;
@@ -286,7 +327,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projectUuid, generatingPr
     fetchProjectTree();
   }, [projectUuid]);
 
-  // 파일 본문 조회 및 403 Forbidden 우회 차단 스케줄러 이펙트
+  // 파일 본문 조회 이펙트
   useEffect(() => {
     const fetchFileContent = async () => {
       if (!projectUuid || !selectedPath) return;
@@ -362,21 +403,21 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projectUuid, generatingPr
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-lg font-black italic tracking-tighter uppercase">
-                시니어 견주 건강관리 앱
+              <h2 className="text-lg font-bold tracking-tight">
+                {currentProjectName}
               </h2>
               <span className="text-[9px] bg-emerald-500/10 text-emerald-500 px-2 py-0.5 rounded border border-emerald-500/20 font-bold uppercase tracking-widest">
                 Live Build
               </span>
             </div>
+            {/* 개발 플랫폼과 AI 엔진 동적 바인딩 구역 */}
             <div className="flex items-center gap-3 mt-1 text-[10px] text-gray-500 font-bold uppercase tracking-widest">
-              <span className="flex items-center gap-1"><Globe size={10}/> 개발: 웹</span>
-              <span className="flex items-center gap-1"><Cpu size={10}/> 엔진: Gemini-3-Flash</span>
+              <span className="flex items-center gap-1"><Globe size={10}/> 개발: {currentFramework}</span>
+              <span className="flex items-center gap-1"><Cpu size={10}/> 엔진: {currentModel}</span>
             </div>
           </div>
         </div>
 
-        {/* 탭 제어판 */}
         <div className="flex bg-black/50 p-1.5 rounded-2xl border border-white/10 shadow-inner">
           <button 
             onClick={() => { setViewMode('code'); setActiveTab('code'); }}
@@ -410,16 +451,13 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projectUuid, generatingPr
           </div>
         ) : activeTab === 'code' ? (
           <div className="flex h-full animate-in slide-in-from-right-4 duration-500">
-            {/* 좌측 탐색기 */}
             <aside className="w-72 border-r border-white/5 bg-black/30 p-6 flex flex-col overflow-hidden relative">
-              
-              {/*[인터랙션 정밀 튜닝]: 타이틀 공간에서 인라인 스위칭으로 개설되는 알림 패널 */}
-              <div className="relative shrink-0 min-h-[32px] flex items-end">
+              <div className="relative shrink-0 min-h-[32px] flex items-center">
                 {showToast ? (
-                  <div className="absolute inset-x-0 bottom-0 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-xl flex items-center gap-2 animate-in fade-in slide-in-from-top-2 duration-300">
+                  <div className="absolute inset-x-0 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-xl flex items-center gap-2 animate-in fade-in slide-in-from-top-2 duration-300">
                     <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse shadow-[0_0_6px_#34d399]" />
                     <span className="text-[10px] font-black text-emerald-400 tracking-tight">
-                      원격 저장소 동기화 완료
+                      작업 보드 실시간 동기화 완료
                     </span>
                   </div>
                 ) : (
@@ -427,11 +465,9 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projectUuid, generatingPr
                     <ChevronRight size={12} className="text-blue-500" /> Project Explorer
                   </p>
                 )}
-                
-                {/* 우측 상단 새로고침 아이콘 단추 */}
                 <button
                   onClick={handleRefreshTreeAction}
-                  className="absolute right-0 bottom-0 p-1.5 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white border border-white/5 transition-all active:scale-95 cursor-pointer z-10"
+                  className="absolute right-0 p-1.5 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white border border-white/5 transition-all active:scale-95 cursor-pointer z-10"
                 >
                   <RefreshCw size={12} className={isTreeRefreshing ? "animate-spin text-cyan-400" : ""} />
                 </button>
@@ -458,7 +494,6 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projectUuid, generatingPr
               </div>
             </aside>
 
-            {/* 중앙 편집기 본체 */}
             <main className="flex-1 flex flex-col min-w-0 bg-[#0D0D0E] relative shadow-2xl">
               <div className="flex items-center justify-between px-8 py-3 bg-white/[0.03] border-b border-white/5">
                 <div className="flex items-center gap-2">
@@ -549,22 +584,17 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projectUuid, generatingPr
             </main>
           </div>
         ) : (
-          /* 프로젝트 명세 섹션 */
           <div className="h-full p-16 max-w-6xl mx-auto overflow-y-auto custom-scrollbar animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="grid grid-cols-3 gap-12 items-start">
               <div className="col-span-2 space-y-10">
-                
-                {/* 1. 타이틀 구역 */}
                 <section className="space-y-4 border-l-4 border-blue-600 pl-8">
                   <h3 className="text-[11px] font-black text-blue-500 uppercase tracking-[0.4em]">Core Specification</h3>
-                  <p className="text-3xl font-bold leading-tight tracking-tighter">"시니어 반려견 건강 관리 돌봄 허브"</p>
+                  <p className="text-3xl font-bold leading-tight tracking-tighter">"{currentProjectName}"</p>
                 </section>
 
-                {/* 2. Description 에디터 구역 */}
                 <section className="bg-white/[0.02] border border-white/5 rounded-[32px] p-8 space-y-4 shadow-xl">
                   <div className="flex justify-between items-center border-b border-white/5 pb-3">
                     <span className="text-[10px] text-gray-500 font-black uppercase tracking-widest">Project Description</span>
-                    
                     {!isEditingDescription && (
                       <button 
                         onClick={() => setIsEditingDescription(true)}
@@ -585,35 +615,22 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projectUuid, generatingPr
                         placeholder="프로젝트의 상세 설명을 고쳐보세요."
                       />
                       <div className="flex justify-end gap-2">
-                        <button 
-                          onClick={() => setIsEditingDescription(false)}
-                          className="flex items-center gap-1 px-4 py-2 bg-white/5 hover:bg-white/10 rounded-xl text-xs font-bold text-gray-400 transition-all cursor-pointer"
-                        >
-                          <X size={13} /> 취소
-                        </button>
-                        <button 
-                          onClick={handleSaveDescription}
-                          className="flex items-center gap-1 px-5 py-2 bg-blue-600 hover:bg-blue-500 rounded-xl text-xs font-black text-white shadow-lg shadow-blue-600/20 transition-all cursor-pointer"
-                        >
-                          <Check size={13} /> 저장하기
-                        </button>
+                        <button onClick={() => setIsEditingDescription(false)} className="flex items-center gap-1 px-4 py-2 bg-white/5 hover:bg-white/10 rounded-xl text-xs font-bold text-gray-400 transition-all cursor-pointer"><X size={13} /> 취소</button>
+                        <button onClick={handleSaveDescription} className="flex items-center gap-1 px-5 py-2 bg-blue-600 hover:bg-blue-500 rounded-xl text-xs font-black text-white shadow-lg shadow-blue-600/20 transition-all cursor-pointer"><Check size={13} /> 저장하기</button>
                       </div>
                     </div>
                   ) : (
-                    <p 
-                      onClick={() => setIsEditingDescription(true)}
-                      title="클릭하여 설명 바로 수정하기"
-                      className="text-sm text-gray-400 leading-relaxed font-medium cursor-pointer hover:text-gray-300 transition-colors p-1 rounded-lg hover:bg-white/[0.01]"
-                    >
-                      {descriptionInput}
+                    <p onClick={() => setIsEditingDescription(true)} title="클릭하여 설명 바로 수정하기" className="text-sm text-gray-400 leading-relaxed font-medium cursor-pointer hover:text-gray-300 transition-colors p-1 rounded-lg hover:bg-white/[0.01]">
+                      {descriptionInput || "등록된 프로젝트 상세 설명이 없습니다."}
                     </p>
                   )}
                 </section>
 
                 <div className="grid grid-cols-2 gap-8">
+                  {/*하단 타겟 스택 실시간 연동 */}
                   <div className="bg-white/5 p-8 rounded-[40px] border border-white/5 shadow-inner">
                     <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mb-3">Target Stack</p>
-                    <p className="text-xl font-bold text-emerald-400">TypeScript, React</p>
+                    <p className="text-xl font-bold text-emerald-400">{currentFramework}</p>
                   </div>
                   <div className="bg-white/5 p-8 rounded-[40px] border border-white/5 shadow-inner">
                     <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mb-3">Policy</p>
@@ -622,11 +639,8 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projectUuid, generatingPr
                 </div>
               </div>
 
-              {/* 우측 빌드 인포 구역 */}
               <div className="bg-blue-600/5 border border-blue-500/20 rounded-[48px] p-10 flex flex-col gap-8 shadow-2xl">
-                 <h4 className="text-xs font-black text-blue-400 uppercase tracking-widest flex items-center gap-3">
-                   <Terminal size={18} /> Build Info
-                 </h4>
+                 <h4 className="text-xs font-black text-blue-400 uppercase tracking-widest flex items-center gap-3"><Terminal size={18} /> Build Info</h4>
                  <div className="space-y-6 text-xs">
                     <div className="flex justify-between border-b border-white/5 pb-4">
                       <span className="text-gray-500">BUILD VERSION</span>
@@ -653,7 +667,6 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projectUuid, generatingPr
             </div>
           </div>
         )}
-
       </div>
     </div>
   );

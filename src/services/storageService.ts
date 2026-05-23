@@ -115,6 +115,47 @@ export const storageService = {
 
       throw error;
     }
+  },
+
+  // 프로젝트 상세 명세(description) 엽데이트 (PATCH)
+  //URL 규격: PATCH /api/storage/projects/{projectUuid}/update
+  updateProjectDescription: async (projectUuid: string, description: string): Promise<any> => {
+    const requestPath = `/api/storage/projects/${projectUuid}/update`;
+
+    // ===== 요청 디버그 로그 =====
+    console.group("[storageService.updateProjectDescription] 요청 정보");
+    console.log("요청 경로:", requestPath);
+    console.log("전송할 쿼리 데이터:", description);
+    console.groupEnd();
+
+    try {
+      const response = await API.get(requestPath, {
+        params: {
+          description: description
+        }
+      });
+
+      // ===== 성공 응답 디버그 =====
+      console.group("[storageService.updateProjectDescription] 응답 성공");
+      console.log("Status:", response.status);
+      console.log("응답 Body:", response.data);
+      console.groupEnd();
+
+      return response.data;
+
+    } catch (error: any) {
+      // ===== 에러 상세 디버그 =====
+      console.group(`[storageService.updateProjectDescription] 요청 실패 (UUID: ${projectUuid})`);
+      console.error("에러 메시지:", error.message);
+
+      if (error.response) {
+        console.error("응답 Status:", error.response.status);
+        console.error("응답 Body:", error.response.data);
+      }
+      console.groupEnd();
+
+      throw error;
+    }
   }
 
 
