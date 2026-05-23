@@ -199,4 +199,25 @@ export const projectService = {
       throw error;
     }
   },
+
+  // 프로젝트 다운로드 (GET)
+  downloadProjectZip: async (uuid: string, onProgress: (percent: number) => void): Promise<any> => {
+    try {
+      const response = await API.get(`/api/storage/${uuid}/download`, {
+        responseType: 'blob', 
+        onDownloadProgress: (progressEvent) => {
+          if (progressEvent.total) {
+            const percentCompleted = Math.round(
+              (progressEvent.loaded * 100) / progressEvent.total
+            );
+            onProgress(percentCompleted);
+          }
+        }
+      });
+      return response;
+    } catch (error) {
+      console.error("프로젝트 압축 다운로드 통신 장애:", error);
+      throw error;
+    }
+  },
 };

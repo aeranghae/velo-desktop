@@ -19,6 +19,10 @@ const Library: React.FC<LibraryProps> = ({ onSelectProject, generatingProjects =
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null); 
   const [editTitleInput, setEditTitleInput] = useState<string>('');
   
+  // (진행률 연동) 각 카드별로 다운로드 수치와 UI 텍스트 상태를 독립 격리
+  const [downloadProgressMap, setDownloadProgressMap] = useState<{ [uuid: string]: number }>({});
+  const [downloadStatusMap, setDownloadStatusMap] = useState<{ [uuid: string]: 'READY' | 'DOWNLOADING' | 'COMPLETED' }>({});
+
   //중복 호출을 막고 재사용하기 위해 프로젝트 목록 가져오는 함수를 밖으로 분리
   const fetchProjects = async () => {
     try {
@@ -41,40 +45,90 @@ const Library: React.FC<LibraryProps> = ({ onSelectProject, generatingProjects =
     }
   }, [activeMenu]); 
 
-  //프로젝트 ZIP 다운로드 실행 트리거
+  // 다운로드 핸들러
   const handleDownloadProject = async (uuid: string, projectName: string) => {
     if (uuid === 'design-guide-dummy-uuid') {
       alert("가이드용 더미 프로젝트는 다운로드할 수 없습니다.\n실제 완성된 프로젝트를 다운로드해 주세요.");
       return;
     }
     
+    // 다운로드 트래킹 초기화 및 상태 잠금
+    setDownloadStatusMap(prev => ({ ...prev, [uuid]: 'DOWNLOADING' }));
+    setDownloadProgressMap(prev => ({ ...prev, [uuid]: 0 }));
+    setActiveMenuId(null); 
+    
     try {
-      alert(`[${projectName}] 프로젝트 소스코드 압축 다운로드를 요청합니다.`);
+      // 토큰과 공통 URL이 믹싱된 서비스 레이어 호출 후, 콜백으로 실시간 퍼센트 파싱
+      const response = await projectService.downloadProjectZip(uuid, (percent) => {
+        setDownloadProgressMap(prev => ({ ...prev, [uuid]: percent }));
+      });
+
+      // 1. 기본 백업 파일명 매핑
+      let fileName = `${projectName}.zip`;
+
+      // 2. 승욱이가 커스텀 패치해 준 Content-Disposition 디코딩
+      const contentDisposition = response.headers['content-disposition'];
+      if (contentDisposition) {
+        const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
+        const matches = filenameRegex.exec(contentDisposition);
+        if (matches !== null && matches[1]) {
+          let rawFileName = matches[1].replace(/['"]/g, '');
+          if (rawFileName.startsWith("UTF-8''")) {
+            rawFileName = rawFileName.substring(7);
+          }
+          fileName = decodeURIComponent(rawFileName); // 한글 깨짐 복원
+        }
+      }
+
+      // 3. 임시 바이너리 블롭 스트림 생성 및 가상 링크 다운로드 기동
+      const blob = new Blob([response.data], { type: 'application/zip' });
+      const downloadUrl = window.URL.createObjectURL(blob);
+      
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = fileName; 
+      
+      document.body.appendChild(link);
+      link.click();
+
+      // 4. 리소스 정리 및 버튼 텍스트 '다운 완료' 전환
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(downloadUrl);
+      
+      setDownloadStatusMap(prev => ({ ...prev, [uuid]: 'COMPLETED' }));
+
+      // 3초 뒤에 유저가 재다운로드할 수 있게 깔끔하게 READY 스타일로 환원
+      setTimeout(() => {
+        setDownloadStatusMap(prev => ({ ...prev, [uuid]: 'READY' }));
+      }, 3000);
+
     } catch (error) {
       console.error("프로젝트 다운로드 중 에러 발생:", error);
-      alert("다운로드 요청 중 오류가 발생했습니다.");
+      alert("프로젝트 압축 파일 다운로드에 실패했습니다.");
+      setDownloadStatusMap(prev => ({ ...prev, [uuid]: 'READY' }));
     }
   };
 
   const buildDisplayList = (): ProjectResponseDto[] => {
-  const dummyGeneratingCards: ProjectResponseDto[] = Object.values(generatingProjects).map(p => ({
-    uuid: p.uuid, 
-    projectName: `[API 설계용] 아키텍처 실시간 제작 프로세스 분석 창`,
-    model: 'gemini-1.5-pro',
-    framework: 'SPRING BOOT',
-    status: 'GENERATING',    
-    description: '',          // 추가
-    createdAt: new Date().toISOString(),
-    lastModified: new Date().toISOString(),
-    size: 0,
-    fileCount: 0,
-  }));
+    const dummyGeneratingCards: ProjectResponseDto[] = Object.values(generatingProjects).map(p => ({
+      uuid: p.uuid, 
+      projectName: `[API 설계용] 아키텍처 실시간 제작 프로세스 분석 창`,
+      model: 'gemini-1.5-pro',
+      framework: 'SPRING BOOT',
+      status: 'GENERATING',    
+      description: '',          
+      createdAt: new Date().toISOString(),
+      lastModified: new Date().toISOString(),
+      size: 0,
+      fileCount: 0,
+    }));
 
-  return [...dummyGeneratingCards, ...projectsList];
-};
+    return [...dummyGeneratingCards, ...projectsList];
+  };
 
   const handleProjectClick = (item: ProjectResponseDto) => {
     if (!item || !item.uuid || editingProjectId === item.uuid) return;
+    if (downloadStatusMap[item.uuid] === 'DOWNLOADING') return; // 다운로드 중일 땐 워크스페이스 이동 방지 잠금
 
     //제작 여부 상관없이 무조건 부모 채널로 전송하여 detail 패스로 이동
     if (onSelectProject) {
@@ -161,6 +215,10 @@ const Library: React.FC<LibraryProps> = ({ onSelectProject, generatingProjects =
                 const isGenerating = currentUuid === 'design-guide-dummy-uuid';
                 const progress = generatingProjects[currentUuid];
 
+                // 개별 카드 전용 다운로드 상태 추출
+                const currentStatus = downloadStatusMap[currentUuid] || 'READY';
+                const currentProgress = downloadProgressMap[currentUuid] || 0;
+
                 return (
                   <div 
                     key={currentUuid} 
@@ -190,7 +248,7 @@ const Library: React.FC<LibraryProps> = ({ onSelectProject, generatingProjects =
                         }
                       </div>
                       
-                      {!isGenerating && (
+                      {!isGenerating && currentStatus === 'READY' && (
                         <div className="relative">
                           <button 
                             onClick={(e) => {
@@ -213,7 +271,7 @@ const Library: React.FC<LibraryProps> = ({ onSelectProject, generatingProjects =
                                   <Edit2 size={13} /> 이름 변경
                                 </button>
                                 <button 
-                                  onClick={(e) => { e.stopPropagation(); setActiveMenuId(null); handleDownloadProject(currentUuid, displayTitle); }}
+                                  onClick={(e) => { e.stopPropagation(); handleDownloadProject(currentUuid, displayTitle); }}
                                   className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold text-blue-400 hover:bg-blue-500/10 rounded-xl transition-all mb-0.5"
                                 >
                                   <DownloadCloud size={13} /> 소스 다운로드
@@ -296,15 +354,37 @@ const Library: React.FC<LibraryProps> = ({ onSelectProject, generatingProjects =
                           <Download size={12} /> {item.fileCount || 0} files
                         </div>
                       ) : (
+                        /*다운로드 상태 스위칭 조건 제어판 매핑 */
                         <button
+                          disabled={currentStatus !== 'READY'}
                           onClick={(e) => {
                             e.stopPropagation(); 
                             handleDownloadProject(currentUuid, displayTitle);
                           }}
-                          className="flex items-center gap-1.5 text-blue-400 hover:text-blue-300 bg-blue-500/10 hover:bg-blue-500/20 px-2.5 py-1 rounded-xl border border-blue-500/20 transition-all active:scale-95 cursor-pointer"
+                          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl border transition-all relative z-20
+                            ${currentStatus === 'DOWNLOADING' 
+                              ? 'text-yellow-400 bg-yellow-500/10 border-yellow-500/20 cursor-not-allowed' 
+                              : currentStatus === 'COMPLETED'
+                              ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20 cursor-not-allowed'
+                              : 'text-blue-400 hover:text-blue-300 bg-blue-500/10 hover:bg-blue-500/20 border-blue-500/20 active:scale-95 cursor-pointer'
+                            }`}
                         >
-                          <Download size={12} className="animate-bounce" style={{ animationDuration: '2s' }} /> 
-                          <span>Download ZIP</span>
+                          {currentStatus === 'DOWNLOADING' ? (
+                            <>
+                              <RefreshCw size={12} className="animate-spin text-yellow-400" />
+                              <span>{currentProgress}% 다운로드 중</span>
+                            </>
+                          ) : currentStatus === 'COMPLETED' ? (
+                            <>
+                              <CheckCircle2 size={12} className="text-emerald-400" />
+                              <span>다운 완료</span>
+                            </>
+                          ) : (
+                            <>
+                              <Download size={12} className="animate-bounce" style={{ animationDuration: '2s' }} /> 
+                              <span>Download ZIP</span>
+                            </>
+                          )}
                         </button>
                       )}
                     </div>
