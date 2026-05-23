@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Code, Clock, ChevronRight, Layout, Cpu, BookOpenText, RefreshCw } from 'lucide-react';
-import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import API from '../services'; 
 import { FrameworkStats } from '../services/statistics';
 import { projectService, ProjectResponseDto } from '../services/projectService'; 
@@ -17,7 +17,7 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveMenu, onSelectProject })
     frameworkCounts: {}
   });
 
-  // 최근 프로젝트
+  // 최근 프로젝트 목록
   const [realRecentProjects, setRealRecentProjects] = useState<ProjectResponseDto[]>([]);
   
   // 데이터 동기화 감지용 로딩 스위치
@@ -96,19 +96,9 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveMenu, onSelectProject })
     if (onSelectProject) {
       onSelectProject(uuid);
     } else {
-      // 혹시 App.tsx에서 함수를 안 넘겨줬을 때를 대비한 안전 장치 백업
       setActiveMenu('library');
     }
   };
-
-  if (isLoading && apiStats.totalProjectCount === 0) {
-    return (
-      <div className="flex-1 flex flex-col items-center justify-center h-full gap-4 bg-[#1C1C1E] rounded-[32px]">
-        <RefreshCw className="animate-spin text-blue-500" size={36} />
-        <p className="text-xs text-gray-500 font-mono tracking-wider">LOADING METRICS STREAM...</p>
-      </div>
-    );
-  }
 
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden animate-in fade-in duration-700 select-none">
@@ -131,6 +121,7 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveMenu, onSelectProject })
           <div className={`p-3 rounded-2xl bg-white/5 ${stats[1].color}`}>{stats[1].icon}</div>
         </div>
 
+        {/* 세 번째 카드: 기술 스택 분포 박스 */}
         <div className="col-span-6 bg-white/5 border border-white/10 p-6 rounded-[24px] backdrop-blur-md flex items-center shadow-xl h-[140px]">
           <div className="shrink-0 flex flex-col gap-1 ml-2 mr-8">
             <h3 className="text-sm font-bold flex items-center gap-2">
@@ -139,24 +130,46 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveMenu, onSelectProject })
             <p className="text-[10px] text-gray-500 font-medium">최근 프로젝트 사용 비율</p>
           </div>
           
-          <div className="flex-1 h-full relative">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie data={chartData} cx="50%" cy="50%" innerRadius={35} outerRadius={48} paddingAngle={isEmpty ? 0 : 5} dataKey="value" cornerRadius={6}>
-                  {chartData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />
+          <div className="flex-1 h-full relative flex items-center justify-center">
+            {isLoading ? (
+              /* 차트 박스 영역 안에서만 우아하게 도는 마이크로 로딩 장치 */
+              <div className="flex items-center gap-2 text-gray-500 text-xs font-mono">
+                <RefreshCw className="animate-spin text-purple-400" size={14} />
+                <span>LOADING GRAPH...</span>
+              </div>
+            ) : (
+              /* 데이터 로드가 끝났을 때만 완벽하게 래핑되어 켜지는 진짜 그래픽 파트 */
+              <div className="w-full h-full flex items-center justify-between" key={apiStats.totalProjectCount}>
+                
+                {/* 왼쪽: 도넛 스키마 */}
+                <div className="w-[110px] h-[110px] relative shrink-0">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie data={chartData} cx="50%" cy="50%" innerRadius={35} outerRadius={48} paddingAngle={isEmpty ? 0 : 5} dataKey="value" cornerRadius={6}>
+                        {chartData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />
+                        ))}
+                      </Pie>
+                      {!isEmpty && <Tooltip contentStyle={{ background: '#1C1C1E', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', fontSize: '10px' }} />}
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+
+                {/* 오른쪽: 하이퍼 커스텀 격리 범례 보드 */}
+                <div className="flex-1 flex flex-col gap-2 pl-8 overflow-y-auto max-h-[110px] custom-scrollbar">
+                  {techStackData.map((entry, index) => (
+                    <div key={index} className="flex items-center justify-between w-full pr-2 text-[11px] font-bold text-gray-400">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: entry.color }} />
+                        <span className="truncate font-mono uppercase tracking-tight text-gray-300">{entry.name}</span>
+                      </div>
+                      <span className="text-gray-600 font-mono text-[10px] shrink-0 ml-2">{entry.value}개</span>
+                    </div>
                   ))}
-                </Pie>
-                {!isEmpty && <Tooltip contentStyle={{ background: '#1C1C1E', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', fontSize: '10px' }} />}
-                {!isEmpty && <Legend layout="vertical" align="right" verticalAlign="middle" iconType="circle" iconSize={8} wrapperStyle={{ fontSize: '11px', color: '#94a3b8', paddingLeft: '30px' }} />}
-              </PieChart>
-            </ResponsiveContainer>
-            
-            <div className="absolute top-1/2 left-[39%] transform -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none">
-                <p className="text-[10px] font-black text-purple-400 uppercase tracking-tight">
-                  {techStackData && techStackData.length > 0 ? techStackData[0].name : 'NONE'}
-                </p>
-            </div>
+                </div>
+
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -175,7 +188,6 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveMenu, onSelectProject })
           </div>
           
           <div className="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar">
-            {/*실제 3개 프로젝트 루프 구동 */}
             {realRecentProjects && realRecentProjects.length > 0 ? (
               realRecentProjects.map((project) => {
                 const displayDate = project.createdAt && typeof project.createdAt === 'string' 

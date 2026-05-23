@@ -325,6 +325,12 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projectUuid, generatingPr
       }
     };
     fetchProjectTree();
+
+    // 상세 페이지방을 나갈 때 캐시 레퍼런스 주머니를 강제 휘발(null) 
+    // 서버에서 최신 수정본 설명(description) 긁어오기
+    return () => {
+      fetchedUuidRef.current = null;
+    };
   }, [projectUuid]);
 
   // 파일 본문 조회 이펙트
@@ -410,7 +416,6 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projectUuid, generatingPr
                 Live Build
               </span>
             </div>
-            {/* 개발 플랫폼과 AI 엔진 동적 바인딩 구역 */}
             <div className="flex items-center gap-3 mt-1 text-[10px] text-gray-500 font-bold uppercase tracking-widest">
               <span className="flex items-center gap-1"><Globe size={10}/> 개발: {currentFramework}</span>
               <span className="flex items-center gap-1"><Cpu size={10}/> 엔진: {currentModel}</span>
@@ -627,7 +632,6 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projectUuid, generatingPr
                 </section>
 
                 <div className="grid grid-cols-2 gap-8">
-                  {/*하단 타겟 스택 실시간 연동 */}
                   <div className="bg-white/5 p-8 rounded-[40px] border border-white/5 shadow-inner">
                     <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mb-3">Target Stack</p>
                     <p className="text-xl font-bold text-emerald-400">{currentFramework}</p>
