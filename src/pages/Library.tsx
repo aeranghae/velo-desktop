@@ -46,68 +46,98 @@ const Library: React.FC<LibraryProps> = ({ onSelectProject, generatingProjects =
   }, [activeMenu]); 
 
   // 다운로드 핸들러
-  const handleDownloadProject = async (uuid: string, projectName: string) => {
-    if (uuid === 'design-guide-dummy-uuid') {
-      alert("가이드용 더미 프로젝트는 다운로드할 수 없습니다.\n실제 완성된 프로젝트를 다운로드해 주세요.");
-      return;
-    }
-    
-    // 다운로드 트래킹 초기화 및 상태 잠금
-    setDownloadStatusMap(prev => ({ ...prev, [uuid]: 'DOWNLOADING' }));
-    setDownloadProgressMap(prev => ({ ...prev, [uuid]: 0 }));
-    setActiveMenuId(null); 
-    
-    try {
-      // 토큰과 공통 URL이 믹싱된 서비스 레이어 호출 후, 콜백으로 실시간 퍼센트 파싱
-      const response = await projectService.downloadProjectZip(uuid, (percent) => {
-        setDownloadProgressMap(prev => ({ ...prev, [uuid]: percent }));
-      });
+const handleDownloadProject = async (uuid: string, projectName: string) => {
+  if (uuid === 'design-guide-dummy-uuid') {
+    alert("가이드용 더미 프로젝트는 다운로드할 수 없습니다.\n실제 완성된 프로젝트를 다운로드해 주세요.");
+    return;
+  }
+  
+  // 다운로드 트래킹 초기화 및 상태 잠금
+  setDownloadStatusMap(prev => ({ ...prev, [uuid]: 'DOWNLOADING' }));
+  setDownloadProgressMap(prev => ({ ...prev, [uuid]: 0 }));
+  setActiveMenuId(null); 
+  
+  try {
+    // 토큰과 공통 URL이 믹싱된 서비스 레이어 호출 후, 콜백으로 실시간 퍼센트 파싱
+    const response = await projectService.downloadProjectZip(uuid, (percent) => {
+      setDownloadProgressMap(prev => ({ ...prev, [uuid]: percent }));
+    });
 
-      // 1. 기본 백업 파일명 매핑
-      let fileName = `${projectName}.zip`;
+    // 1. 기본 백업 파일명 매핑
+    let fileName = `${projectName}.zip`;
 
-      // 2. 승욱이가 커스텀 패치해 준 Content-Disposition 디코딩
-      const contentDisposition = response.headers['content-disposition'];
-      if (contentDisposition) {
-        const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
-        const matches = filenameRegex.exec(contentDisposition);
+    // 2. 승욱이가 커스텀 패치해 준 Content-Disposition 디코딩 (맥/윈도우 크로스 플랫폼 최적화)
+    const contentDisposition = response.headers['content-disposition'];
+    if (contentDisposition) {
+      // RFC 5987 표준 규격(filename*=UTF-8'')을 1순위로 조집니다. (맥/크롬 호환용)
+      const filenameStarRegex = /filename\*=UTF-8''([^;\n]*)/;
+      const filenameRegex = /filename=([^;\n]*)/;
+      
+      let matches = filenameStarRegex.exec(contentDisposition);
+      let rawFileName = '';
+
+      if (matches !== null && matches[1]) {
+        rawFileName = matches[1];
+      } else {
+        // 1순위가 없으면 낡은 filename= 구조를 파싱합니다.
+        matches = filenameRegex.exec(contentDisposition);
         if (matches !== null && matches[1]) {
-          let rawFileName = matches[1].replace(/['"]/g, '');
-          if (rawFileName.startsWith("UTF-8''")) {
-            rawFileName = rawFileName.substring(7);
-          }
-          fileName = decodeURIComponent(rawFileName); // 한글 깨짐 복원
+          rawFileName = matches[1];
         }
       }
 
-      // 3. 임시 바이너리 블롭 스트림 생성 및 가상 링크 다운로드 기동
-      const blob = new Blob([response.data], { type: 'application/zip' });
-      const downloadUrl = window.URL.createObjectURL(blob);
-      
-      const link = document.createElement('a');
-      link.href = downloadUrl;
-      link.download = fileName; 
-      
-      document.body.appendChild(link);
-      link.click();
+      if (rawFileName) {
+        // 따옴표 및 인코딩 접두사 청소
+        rawFileName = rawFileName.replace(/['"]/g, '');
+        if (rawFileName.startsWith("UTF-8''")) {
+          rawFileName = rawFileName.substring(7);
+        }
 
-      // 4. 리소스 정리 및 버튼 텍스트 '다운 완료' 전환
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(downloadUrl);
-      
-      setDownloadStatusMap(prev => ({ ...prev, [uuid]: 'COMPLETED' }));
-
-      // 3초 뒤에 유저가 재다운로드할 수 있게 깔끔하게 READY 스타일로 환원
-      setTimeout(() => {
-        setDownloadStatusMap(prev => ({ ...prev, [uuid]: 'READY' }));
-      }, 3000);
-
-    } catch (error) {
-      console.error("프로젝트 다운로드 중 에러 발생:", error);
-      alert("프로젝트 압축 파일 다운로드에 실패했습니다.");
-      setDownloadStatusMap(prev => ({ ...prev, [uuid]: 'READY' }));
+        try {
+          // 맥 브라우저 버그로 깨진 껍데기(=_UTF-8_Q_ 등)가 유입되었다면 파라미터의 projectName으로 안전하게 대체
+          if (rawFileName.includes('=?UTF-8?') || rawFileName.includes('=_UTF-8_')) {
+            fileName = `${projectName.replaceAll(/\s+/g, '')}.zip`;
+          } else {
+            fileName = decodeURIComponent(rawFileName); // 순수 한글 깨짐 복원
+          }
+        } catch (e) {
+          // 디코딩 중 에러 시 안전하게 fallback 처리
+          fileName = `${projectName.replaceAll(/\s+/g, '')}.zip`;
+        }
+      }
     }
-  };
+
+    // NFC 노멀라이징
+    fileName = fileName.normalize('NFC');
+
+    // 3. 임시 바이너리 블롭 스트림 생성 및 가상 링크 다운로드 기동
+    const blob = new Blob([response.data], { type: 'application/zip' });
+    const downloadUrl = window.URL.createObjectURL(blob);
+    
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.download = fileName; 
+    
+    document.body.appendChild(link);
+    link.click();
+
+    // 4. 리소스 정리 및 버튼 텍스트 '다운 완료' 전환
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(downloadUrl);
+    
+    setDownloadStatusMap(prev => ({ ...prev, [uuid]: 'COMPLETED' }));
+
+    // 3초 뒤에 유저가 재다운로드할 수 있게 깔끔하게 READY 스타일로 환원
+    setTimeout(() => {
+      setDownloadStatusMap(prev => ({ ...prev, [uuid]: 'READY' }));
+    }, 3000);
+
+  } catch (error) {
+    console.error("프로젝트 다운로드 중 에러 발생:", error);
+    alert("프로젝트 압축 파일 다운로드에 실패했습니다.");
+    setDownloadStatusMap(prev => ({ ...prev, [uuid]: 'READY' }));
+  }
+};
 
   const buildDisplayList = (): ProjectResponseDto[] => {
     const dummyGeneratingCards: ProjectResponseDto[] = Object.values(generatingProjects).map(p => ({
