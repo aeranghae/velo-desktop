@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { 
   ChevronRight, ChevronLeft, Sparkles, Check, 
   Info, FileText, ShieldCheck, RefreshCw, AlertCircle, History,
-  Terminal, BookOpen, Layers, Server, Globe
+  Terminal, BookOpen, Layers, Server, Globe, Target, Sparkle, UserCheck
 } from 'lucide-react';
 import { projectService, ProjectCreateRequestDto } from '../services/projectService';
 import SpotlightCardGroup, { SpotlightCardData } from '../components/SpotlightCardGroup';
@@ -36,6 +36,16 @@ const CreateProject: React.FC<CreateProjectProps> = ({ onGenerate }) => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [showStackGuide, setShowStackGuide] = useState(false);
   const [selectedGuideStack, setSelectedGuideStack] = useState('React');
+
+  // 가이드라인 모드 활성화 여부 제어
+  const [isGuidelineMode, setIsGuidelineMode] = useState(false);
+  
+  // 분할 구조화 데이터 주머니
+  const [guidelineForm, setGuidelineForm] = useState({
+    targetUser: '',
+    corePurpose: '',
+    coreFeatures: ''
+  });
 
   const [formData, setFormData] = useState({
     projectName: '',
@@ -110,8 +120,6 @@ const CreateProject: React.FC<CreateProjectProps> = ({ onGenerate }) => {
       prompt: formData.prompt,
     };
 
-    console.log("=== 전송 요청 객체 ===", JSON.stringify(requestDto, null, 2));
-
     try {
       const result = await projectService.generateProject(requestDto);
       onGenerate(result); 
@@ -136,11 +144,16 @@ const CreateProject: React.FC<CreateProjectProps> = ({ onGenerate }) => {
   };
 
   const handleAnalyze = async () => {
-    if (!formData.prompt.trim()) return alert("프롬프트를 입력해주세요.");
+    let finalPrompt = formData.prompt;
+    if (isGuidelineMode) {
+      finalPrompt = `[누가 사용하나요?]\n- ${guidelineForm.targetUser}\n\n[핵심 목적]\n- ${guidelineForm.corePurpose}\n\n[가장 필요한 기능 설명]\n- ${guidelineForm.coreFeatures}`;
+    }
+
+    if (!finalPrompt.trim()) return alert("프롬프트를 입력해주세요.");
 
     setIsAnalyzing(true);
     try {
-      const res = await projectService.analyzeProject(formData.prompt);
+      const res = await projectService.analyzeProject(finalPrompt);
 
       const fw = res.framework || { unified: '', backend: '', frontend: '' };
       const lang = res.language || { unified: '', backend: '', frontend: '' };
@@ -164,12 +177,13 @@ const CreateProject: React.FC<CreateProjectProps> = ({ onGenerate }) => {
         },
         programming_language: { value: langValue, isInferred: true },
         recommended_stack,
-        prompt: formData.prompt,
+        prompt: finalPrompt,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
 
       setFormData(prev => ({
         ...prev,
+        prompt: finalPrompt,
         analysisHistory: [newVersion, ...prev.analysisHistory],
         selectedHistoryIdx: 0,
       }));
@@ -190,6 +204,7 @@ const CreateProject: React.FC<CreateProjectProps> = ({ onGenerate }) => {
     switch (step) {
       case 1:
         const currentAnalysis = formData.analysisHistory[formData.selectedHistoryIdx];
+
         return (
           <div className="flex gap-8 h-full animate-in fade-in slide-in-from-right-8 duration-500">
             <div className="flex-[1.2] flex flex-col gap-6">
@@ -202,7 +217,7 @@ const CreateProject: React.FC<CreateProjectProps> = ({ onGenerate }) => {
                     type="text" 
                     value={formData.projectName}
                     onChange={(e) => setFormData({...formData, projectName: e.target.value})}
-                    className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 mt-2 outline-none focus:border-blue-500 transition-all font-medium text-sm" 
+                    className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 mt-2 outline-none focus:border-blue-500 transition-all font-medium text-sm text-white placeholder:text-gray-500" 
                     placeholder="프로젝트명 입력" 
                   />
                 </div>
@@ -213,41 +228,130 @@ const CreateProject: React.FC<CreateProjectProps> = ({ onGenerate }) => {
                     type="text" 
                     value={formData.artifact}
                     onChange={(e) => setFormData({...formData, artifact: e.target.value.toLowerCase().replace(/\s/g, '')})}
-                    className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 mt-2 outline-none focus:border-emerald-500 transition-all font-mono text-sm tracking-tight text-emerald-200" 
+                    className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 mt-2 outline-none focus:border-emerald-500 transition-all font-mono text-sm tracking-tight text-emerald-200 placeholder:text-gray-500" 
                     placeholder="예: autostudio" 
                   />
                 </div>
               </div>
 
-              {/* 🟢 [완벽 삭제]: 눈에 가시 같던 수동 가짜 Stack Mode 제어판(Grid 박스 구역) 통째로 영구 도려냄 */}
-
+              {/* 텍스트 에디터 메인 프레임 */}
               <div className="flex-1 flex flex-col relative min-h-0">
-                <div className="flex justify-between items-center mb-2 shrink-0">
-                  <div className="flex gap-2">
-                    <label className="text-[10px] font-bold text-purple-400 uppercase tracking-[0.2em] ml-1">Requirements Prompt</label>
+                
+                {/* 헤더 버튼 정렬 영역 */}
+                <div className="flex flex-wrap items-center justify-between gap-3 mb-3 shrink-0">
+                  <div className="flex items-center">
+                    <label className="text-[10px] font-bold text-purple-400 uppercase tracking-[0.2em] ml-1">
+                      Requirements Prompt
+                    </label>
+                  </div>
+                  
+                  <div className="flex items-center gap-2 ml-auto">
+                    {/* 버튼 1. 기술 스택 가이드 */}
                     <button 
                       onClick={() => setShowStackGuide(!showStackGuide)}
-                      className={`text-[9px] flex items-center gap-1 px-2 py-0.5 rounded border font-bold transition-all ${showStackGuide ? 'bg-blue-500 text-white border-blue-500' : 'bg-blue-500/10 text-blue-400 border-blue-500/30 hover:bg-blue-500/20'}`}
+                      className={`text-[9px] py-1 px-3 whitespace-nowrap rounded font-bold border transition-all flex items-center gap-1.5 h-6 shadow-sm active:scale-95
+                        ${showStackGuide 
+                          ? 'bg-blue-600 text-white border-blue-500' 
+                          : 'bg-blue-500/10 text-blue-400 border-blue-500/30 hover:bg-blue-500/20'
+                        }`}
                     >
-                      <BookOpen size={10}/> 기술 스택 가이드
+                      <BookOpen size={11}/> 
+                      <span>기술 스택 가이드</span>
+                    </button>
+                    
+                    {/* 버튼 2. 자유 메모장 */}
+                    <button 
+                      onClick={() => {
+                        setFormData({ ...formData, prompt: '' });
+                        setIsGuidelineMode(false);
+                      }} 
+                      className={`text-[9px] py-1 px-3 whitespace-nowrap rounded font-bold border transition-all flex items-center gap-1.5 h-6 shadow-sm active:scale-95
+                        ${!isGuidelineMode 
+                          ? 'bg-purple-600 text-white border-purple-500' 
+                          : 'bg-purple-500/10 text-purple-400 border-purple-500/30 hover:bg-purple-500/20'
+                        }`}
+                    >
+                      <Sparkle size={10} className={!isGuidelineMode ? 'text-white' : 'text-purple-400'} />
+                      <span>자유 메모장</span>
+                    </button>
+
+                    {/* 버튼 3. 요구사항 가이드 */}
+                    <button 
+                      onClick={() => setIsGuidelineMode(true)} 
+                      className={`text-[9px] py-1 px-3 whitespace-nowrap rounded font-bold border transition-all flex items-center gap-1.5 h-6 shadow-sm active:scale-95
+                        ${isGuidelineMode 
+                          ? 'bg-purple-600 text-white border-purple-500' 
+                          : 'bg-purple-500/10 text-purple-400 border-purple-500/30 hover:bg-purple-500/20'
+                        }`}
+                    >
+                      <Sparkle size={10} className={isGuidelineMode ? 'text-white' : 'text-purple-400'} />
+                      <span>요구사항 가이드</span>
                     </button>
                   </div>
-                  <button 
-                    onClick={() => setFormData({ 
-                      ...formData, 
-                      prompt: `[누가 사용하나요?]\n- \n\n[핵심 목적]\n- \n\n[가장 필요한 기능 설명]\n- ` 
-                    })} 
-                    className="text-[10px] bg-purple-600/20 text-purple-400 px-3 py-1.5 rounded-xl border border-purple-500/30 hover:bg-purple-600/30 font-bold transition-all"
-                  >
-                    가이드라인 불러오기
-                  </button>
                 </div>
-                <textarea 
-                  className="flex-1 bg-white/5 border border-white/10 rounded-2xl p-6 outline-none focus:border-purple-500 resize-none transition-all text-sm leading-relaxed custom-scrollbar shadow-inner" 
-                  placeholder="아이디어를 입력하세요. 가이드를 참고하면 더 정확한 분석이 가능합니다."
-                  value={formData.prompt}
-                  onChange={(e) => setFormData({...formData, prompt: e.target.value})}
-                />
+
+                {/* 에디터 메인 컨테이너 박스 */}
+                <div className="flex-1 min-h-0 relative bg-black/40 border border-purple-500/40 rounded-2xl shadow-[inset_0_4px_20px_rgba(0,0,0,0.6)] overflow-hidden focus-within:border-purple-500/80 transition-all">
+                  {isGuidelineMode ? (
+                    // 1. 요구사항 가이드 양식 활성화 인풋 보드
+                    <div className="w-full h-full p-6 overflow-y-auto custom-scrollbar space-y-6 animate-in zoom-in-95 duration-300">
+                      
+                      {/* 블록 1. 누가 사용하나요? */}
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 text-[11px] font-extrabold text-purple-200 uppercase tracking-wider">
+                          <UserCheck size={14} className="text-purple-400" />
+                          <span>01. 누가 사용하나요?</span>
+                        </div>
+                        <input 
+                          type="text"
+                          value={guidelineForm.targetUser}
+                          onChange={(e) => setGuidelineForm({...guidelineForm, targetUser: e.target.value})}
+                          placeholder="예: 대학생 스터디 그룹, 백엔드 초급 개발자"
+                          className="w-full bg-white/[0.04] border border-white/10 rounded-xl p-3.5 text-sm text-white placeholder:text-gray-500 outline-none focus:border-purple-500/60 focus:bg-white/[0.07] transition-all font-semibold"
+                        />
+                      </div>
+
+                      {/* 블록 2. 핵심 목적 */}
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 text-[11px] font-extrabold text-blue-200 uppercase tracking-wider">
+                          <Target size={14} className="text-blue-400" />
+                          <span>02. 프로젝트의 핵심 목적</span>
+                        </div>
+                        <input 
+                          type="text"
+                          value={guidelineForm.corePurpose}
+                          onChange={(e) => setGuidelineForm({...guidelineForm, corePurpose: e.target.value})}
+                          placeholder="예: 실시간 예약 시스템의 병목 현상 제거 및 코드 자동 생성 시뮬레이션"
+                          className="w-full bg-white/[0.04] border border-white/10 rounded-xl p-3.5 text-sm text-white placeholder:text-gray-500 outline-none focus:border-blue-500/60 focus:bg-white/[0.07] transition-all font-semibold"
+                        />
+                      </div>
+
+                      {/* 팩터 3. 핵심 상세 기능 */}
+                      <div className="space-y-2 flex flex-col min-h-[140px]">
+                        <div className="flex items-center gap-2 text-[11px] font-extrabold text-emerald-200 uppercase tracking-wider">
+                          <Layers size={14} className="text-emerald-400" />
+                          <span>03. 가장 필요한 기능 설명</span>
+                        </div>
+                        <textarea 
+                          value={guidelineForm.coreFeatures}
+                          onChange={(e) => setGuidelineForm({...guidelineForm, coreFeatures: e.target.value})}
+                          placeholder="예:&#13;1. 구글 소셜 로그인 연동 기능&#13;2. 파일 트리에서 실시간 동기화 및 캐시 파괴 기능&#13;3. 사용량 통계 시각화 도넛 차트 구현"
+                          className="w-full flex-1 min-h-[120px] bg-white/[0.04] border border-white/10 rounded-xl p-4 text-sm text-white placeholder:text-gray-500 outline-none focus:border-emerald-500/60 focus:bg-white/[0.07] transition-all resize-none custom-scrollbar leading-relaxed font-semibold"
+                        />
+                      </div>
+
+                    </div>
+                  ) : (
+                    // 2. 자유 메모장 모드 보드
+                    <textarea 
+                      className="w-full h-full bg-transparent p-6 outline-none resize-none text-sm leading-relaxed custom-scrollbar text-white placeholder:text-gray-500 font-sans font-semibold" 
+                      placeholder="아이디어를 자유롭게 입력하세요. 혹은 우측 상단의 '요구사항 가이드' 버튼을 누르면 프롬프트를 쉽게 작성할 수 있습니다."
+                      value={formData.prompt}
+                      onChange={(e) => setFormData({...formData, prompt: e.target.value})}
+                    />
+                  )}
+                </div>
+
                 <button 
                   onClick={handleAnalyze}
                   disabled={isAnalyzing}
@@ -281,18 +385,18 @@ const CreateProject: React.FC<CreateProjectProps> = ({ onGenerate }) => {
                 </div>
               ) : (
                 <div className="flex-1 flex flex-col overflow-hidden">
-                  <div className="flex justify-between items-center mb-6 shrink-0">
+                  <div className="flex justify-between items-center mb-6 shrink-0 w-full">
                     <h3 className="text-sm font-bold flex items-center gap-2 text-blue-400"><History size={18} /> Analysis Spec</h3>
-                    <div className="flex gap-1.5">
+                    <div className="flex gap-1.5 ml-auto pr-1">
                       {formData.analysisHistory.slice(0, 3).map((_, idx) => (
-                        <button key={idx} onClick={() => setFormData({...formData, selectedHistoryIdx: idx})} className={`w-7 h-7 rounded-lg text-[10px] font-bold border transition-all ${formData.selectedHistoryIdx === idx ? 'bg-blue-600 border-blue-500 text-white' : 'bg-white/5 border-white/10 text-gray-500 hover:bg-white/10'}`}>V{formData.analysisHistory.length - idx}</button>
+                        <button key={idx} onClick={() => setFormData({...formData, selectedHistoryIdx: idx})} className={`w-7 h-7 rounded-lg text-[10px] font-bold border transition-all ${formData.selectedHistoryIdx === idx ? 'bg-blue-600 border-blue-500 text-white shadow-md' : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'}`}>V{formData.analysisHistory.length - idx}</button>
                       ))}
                     </div>
                   </div>
 
                   <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-6 pb-20">
                     {isAnalyzing ? (
-                      <div className="h-full flex flex-col items-center justify-center space-y-4 opacity-50"><RefreshCw size={30} className="animate-spin text-blue-500" /><p className="text-xs">요구사항 모델링 중...</p></div>
+                      <div className="h-full flex flex-col items-center justify-center space-y-4 opacity-50"><RefreshCw size={30} className="animate-spin text-blue-500" /><p className="text-xs text-white">요구사항 모델링 중...</p></div>
                     ) : currentAnalysis ? (
                       <div className="animate-in fade-in slide-in-from-right-4 space-y-7">
                         <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
@@ -330,7 +434,7 @@ const CreateProject: React.FC<CreateProjectProps> = ({ onGenerate }) => {
                         </button>
                       </div>
                     ) : (
-                      <div className="h-full flex flex-col items-center justify-center text-center opacity-30 pt-20"><AlertCircle size={40} className="mb-3" /><p className="text-xs">프롬프트를 분석해 주세요.</p></div>
+                      <div className="h-full flex flex-col items-center justify-center text-center opacity-30 pt-20"><AlertCircle size={40} className="mb-3 text-gray-400" /><p className="text-xs text-white">프롬프트를 분석해 주세요.</p></div>
                     )}
                   </div>
                 </div>
@@ -442,7 +546,7 @@ const CreateProject: React.FC<CreateProjectProps> = ({ onGenerate }) => {
                   onClick={() => setFormData({...formData, license: lic})} 
                   className={`w-full p-6 rounded-3xl border transition-all flex justify-between items-center ${formData.license === lic ? 'bg-orange-600/15 border-orange-500 shadow-lg' : 'bg-white/5 border-white/10'}`}
                 >
-                  <span className="font-bold text-sm">{lic} License</span>
+                  <span className="font-bold text-sm text-white">{lic} License</span>
                   <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${formData.license === lic ? 'border-orange-500' : 'border-white/20'}`}>
                     {formData.license === lic && <div className="w-2.5 h-2.5 bg-orange-500 rounded-full" />}
                   </div>
@@ -452,21 +556,21 @@ const CreateProject: React.FC<CreateProjectProps> = ({ onGenerate }) => {
             <div className="w-80 bg-orange-600/5 border border-orange-500/20 rounded-[32px] p-6 shrink-0 flex flex-col justify-between h-full max-h-[400px]">
               <div className="space-y-4">
                 <h3 className="text-sm font-bold flex items-center gap-2 text-orange-400"><ShieldCheck size={18} /> License Detail</h3>
-                <p className="text-[13px] text-gray-300 leading-relaxed font-medium bg-white/[0.02] p-4 rounded-2xl border border-white/5">
+                <p className="text-[13px] text-white leading-relaxed font-medium bg-white/[0.02] p-4 rounded-2xl border border-white/5">
                   {licenseGuideTexts[formData.license] || '프로젝트의 법적 권한을 설정합니다.'}
                 </p>
               </div>
 
               <div className="mt-4 pt-4 border-t border-white/5 space-y-3 flex-1 overflow-y-auto custom-scrollbar">
-                <p className="text-[10px] text-gray-500 font-black uppercase tracking-wider">Permission Scope</p>
+                <p className="text-[10px] text-purple-300 font-black uppercase tracking-wider">Permission Scope</p>
                 <div className="space-y-1.5">
                   {currentSpec.allow.map((allowText, idx) => (
-                    <div key={idx} className="flex items-center gap-2 text-[11px] text-emerald-400 font-bold bg-emerald-500/5 px-2.5 py-1.5 rounded-xl border border-emerald-500/10">
+                    <div key={idx} className="flex items-center gap-2 text-[11px] text-emerald-300 font-bold bg-emerald-500/5 px-2.5 py-1.5 rounded-xl border border-emerald-500/10">
                       <div className="w-1 h-1 bg-emerald-400 rounded-full" /> {allowText}
                     </div>
                   ))}
                   {currentSpec.restrict.map((restrictText, idx) => (
-                    <div key={idx} className="flex items-center gap-2 text-[11px] text-amber-400 font-bold bg-amber-500/5 px-2.5 py-1.5 rounded-xl border border-amber-500/10">
+                    <div key={idx} className="flex items-center gap-2 text-[11px] text-amber-300 font-bold bg-amber-500/5 px-2.5 py-1.5 rounded-xl border border-amber-500/10">
                       <div className="w-1 h-1 bg-amber-400 rounded-full" /> {restrictText}
                     </div>
                   ))}
@@ -486,7 +590,7 @@ const CreateProject: React.FC<CreateProjectProps> = ({ onGenerate }) => {
               </div>
               <div className="grid grid-cols-2 gap-10">
                 <div className="space-y-6 text-sm">
-                  <div><p className="text-[10px] text-gray-500 font-bold uppercase mb-1.5 tracking-widest">Project Identity</p><p className="text-xl font-bold">{formData.projectName || 'New Project'}</p></div>
+                  <div><p className="text-[10px] text-gray-500 font-bold uppercase mb-1.5 tracking-widest">Project Identity</p><p className="text-xl font-bold text-white">{formData.projectName || 'New Project'}</p></div>
                   <div><p className="text-[10px] text-gray-500 font-bold uppercase mb-1.5 tracking-widest">Build Artifact Target</p>
                     <p className="text-sm font-mono font-bold text-orange-400">{formData.artifact}</p>
                   </div>
