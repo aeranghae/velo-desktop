@@ -230,29 +230,37 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projectUuid, generatingPr
   };
 
   const handleSaveDescription = async () => {
-    if (!descriptionInput.trim()) {
-      alert("프로젝트 설명을 입력해주세요.");
-      return;
+  if (!descriptionInput.trim()) {
+    alert("프로젝트 설명을 입력해주세요.");
+    return;
+  }
+  if (!projectUuid || projectUuid === "undefined") {
+    alert("유효하지 않은 프로젝트 식별자입니다.");
+    return;
+  }
+
+  try {
+    setIsTreeLoading(true);
+    const result = await storageService.updateProjectDescription(projectUuid, descriptionInput);
+
+    // 서버 응답의 description으로 화면을 다시 맞춤 (저장 검증 겸용)
+    if (result && typeof result.description === 'string') {
+      setDescriptionInput(result.description);
+      if (result.description !== descriptionInput.trim()) {
+        console.warn("서버 저장값이 입력값과 다릅니다. 백엔드 저장 로직 확인 필요.");
+      }
     }
-    
-    if (!projectUuid || projectUuid === "undefined") {
-      alert("유효하지 않은 프로젝트 식별자입니다.");
-      return;
-    }
-    
-    try {
-      setIsTreeLoading(true);
-      await storageService.updateProjectDescription(projectUuid, descriptionInput);
-      setIsEditingDescription(false);
-      setShowToast(true);
-      setTimeout(() => setShowToast(false), 2000);
-    } catch (err: any) {
-      console.error("Description 백엔드 연동 장애 발생:", err);
-      alert("프로젝트 명세를 서버에 저장하는 도중 오류가 발생했습니다.");
-    } finally {
-      setIsTreeLoading(false);
-    }
-  };
+
+    setIsEditingDescription(false);
+    setShowToast(true);
+    setTimeout(() => setShowToast(false), 2000);
+  } catch (err: any) {
+    console.error("Description 백엔드 연동 장애 발생:", err);
+    alert("프로젝트 명세를 서버에 저장하는 도중 오류가 발생했습니다.");
+  } finally {
+    setIsTreeLoading(false);
+  }
+};
 
   useEffect(() => {
     const fetchProjectTree = async () => {
@@ -281,9 +289,9 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projectUuid, generatingPr
             setCurrentModel(current.model || "Gemini-3-Flash");
             setCurrentFramework(current.framework || "Web Framework");
             
-            if (current.description) {
+            //if (current.description) {
               setDescriptionInput(current.description);
-            }
+            //}
           }
         } catch (e) {
           console.error("프로젝트 메타정보 조회 장애 수신:", e);
