@@ -117,22 +117,22 @@ export const storageService = {
     }
   },
 
-  // 프로젝트 상세 명세(description) 엽데이트 (PATCH)
-  //URL 규격: PATCH /api/storage/projects/{projectUuid}/update
+  // 프로젝트 상세 명세(description) 업데이트 (PATCH + Body)
+  // URL 규격: PATCH /api/storage/projects/{projectUuid}/update
   updateProjectDescription: async (projectUuid: string, description: string): Promise<any> => {
-    const requestPath = `/api/storage/projects/${projectUuid}/update`;
+    const requestPath = `/api/storage/projects/${projectUuid}/description`;
 
     // ===== 요청 디버그 로그 =====
     console.group("[storageService.updateProjectDescription] 요청 정보");
     console.log("요청 경로:", requestPath);
-    console.log("전송할 쿼리 데이터:", description);
+    console.log("전송 방식: PATCH (Body)");
+    console.log("전송할 Body 데이터:", { description });
     console.groupEnd();
 
     try {
-      const response = await API.get(requestPath, {
-        params: {
-          description: description
-        }
+      // PATCH 요청, description을 요청 바디에 담아 전송
+      const response = await API.patch(requestPath, {
+        description: description
       });
 
       // ===== 성공 응답 디버그 =====
