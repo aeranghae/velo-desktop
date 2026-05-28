@@ -127,7 +127,7 @@ export const projectService = {
   },
 
   // (로그) 실시간 공정 로그 SSE 스트림 연결
-  // 백엔드 규격: 헤더 인증(Authorization) + 4파트 데이터(레벨||시간||상태||메시지)
+  // 백엔드 규격: 헤더 인증(Authorization) +5파트 데이터(레벨||시간||상태||메시지||isActivityFeed)
   // onLog   : 포맷된 로그 라인을 한 줄씩 전달
   // onStatus: 4파트 중 status를 전달 (상단 진행 상태 갱신용)
   // onError : 스트림 종료/에러 시 호출 (최종 상태 재조회용)
@@ -152,12 +152,24 @@ export const projectService = {
         // 백엔드 이벤트명: log-stream 만 처리
         if (event.event !== 'log-stream') return;
 
-        // 데이터 형식: "레벨||시간||상태||메시지" (최대 4분할)
-        const [logLevel, timestamp, status, message] = String(event.data).split('||', 4);
+        // 고정 5파트 파싱 진행
+        const [logLevel, timestamp, status, message, isActivityFeed] = String(event.data).split('||', 5);
 
         // 시간은 ISO 문자열에서 HH:mm:ss만 추출
         const displayTime = timestamp ? timestamp.substring(11, 19) : '';
         onLog(`[${logLevel ?? ''}] [${displayTime}] ${message ?? ''}`);
+
+        //활동 피드 전송 로직 (isActivityFeed가 'true'이면 커스텀 이벤트 발행)
+        if (isActivityFeed === 'true') {
+          const activityEvent = new CustomEvent('dashboard-activity-update', {
+            detail: {
+              text: message ?? '',
+              time: displayTime || '방금 전',
+              type: 'info'
+            }
+          });
+          window.dispatchEvent(activityEvent);
+        }
 
         // 상태 갱신
         if (status) onStatus(status as ProjectStatus);

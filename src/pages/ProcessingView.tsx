@@ -96,7 +96,7 @@ const ProcessingView: React.FC<ProcessingViewProps> = ({ projectUuid, onComplete
           projectUuid,
           // onLog: 새 로그 라인 append
           (line) => setLogText((prev) => prev + line + '\n'),
-          // onStatus: 4파트 중 status로 상단 진행 상태 갱신
+          // onStatus: 파트 중 status로 상단 진행 상태 갱신
           (newStatus) => {
             setStatus(newStatus);
             setProgress(STATUS_PROGRESS[newStatus] ?? 0);

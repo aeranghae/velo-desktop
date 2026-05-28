@@ -10,6 +10,12 @@ interface DashboardProps {
   onSelectProject?: (uuid: string) => void; 
 }
 
+interface ActivityLogItem {
+  text: string;
+  time: string;
+  type: string;
+}
+
 const Dashboard: React.FC<DashboardProps> = ({ setActiveMenu, onSelectProject }) => {
   // 백엔드 통계 데이터
   const [apiStats, setApiStats] = useState<FrameworkStats>({
@@ -22,6 +28,9 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveMenu, onSelectProject })
   
   // 데이터 동기화 감지용 로딩 스위치
   const [isLoading, setIsLoading] = useState<boolean>(true);
+
+  // 활동 피드 목록을 실시간으로 반영 가능하도록 컴포넌트 상태로 관리
+  const [activityLogs, setActivityLogs] = useState<ActivityLogItem[]>([]);
 
   // 컴포넌트 마운트 시 기술 스택 분포 통계 및 실제 프로젝트 목록 호출
   useEffect(() => {
@@ -53,6 +62,19 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveMenu, onSelectProject })
     };
 
     fetchDashboardData();
+
+    //SSE 스트림으로부터 넘어오는 활동 로그 실시간 전역 이벤트 리스너 등록
+    const handleActivityUpdate = (e: Event) => {
+      const customEvent = e as CustomEvent<ActivityLogItem>;
+      if (customEvent.detail) {
+        setActivityLogs((prev) => [customEvent.detail, ...prev]);
+      }
+    };
+
+    window.addEventListener('dashboard-activity-update', handleActivityUpdate);
+    return () => {
+      window.removeEventListener('dashboard-activity-update', handleActivityUpdate);
+    };
   }, []);
 
   // 백엔드 맵 데이터를 Recharts 차트 전용 배열 포맷으로 변환
@@ -241,13 +263,7 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveMenu, onSelectProject })
           
           <div className="flex-1 bg-black/20 border border-white/10 rounded-[32px] p-6 overflow-hidden flex flex-col shadow-inner">
             <div className="flex-1 space-y-5 overflow-y-auto custom-scrollbar pr-2">
-              {[
-                { text: "AI 에이전트가 **인증 모듈** 생성을 성공적으로 완료했습니다.", time: "14:20:05", type: "success" },
-                { text: "프로젝트 **'이미지 분석 엔진'**의 의존성 라이브러리를 업데이트했습니다.", time: "13:45:12", type: "info" },
-                { text: "새로운 기술 스택 **FastAPI**가 시스템에 추가되었습니다.", time: "11:30:00", type: "system" },
-                { text: "사용자 **Hyoju**님이 새로운 프로젝트 설계를 시작했습니다.", time: "09:15:22", type: "user" },
-                { text: "데이터베이스 스키마 자동 설계가 완료되었습니다.", time: "어제", type: "success" }
-              ].map((log, i) => (
+              {activityLogs.map((log, i) => (
                 <div key={i} className="flex gap-4 items-start">
                   <div className={`w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 shadow-[0_0_8px_rgba(59,130,246,0.5)] ${log.type === 'success' ? 'bg-green-500' : 'bg-blue-500'}`} />
                   <div className="flex-1">
