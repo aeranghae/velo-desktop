@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Cpu, Layout, HardDrive, Save, CheckCircle2, Sparkles, BrainCircuit, BotMessageSquare, Bell, Trash2 } from 'lucide-react';
+import { Cpu, Layout, HardDrive, Save, CheckCircle2, Sparkles, BrainCircuit, BotMessageSquare, Bell, Trash2, RefreshCw } from 'lucide-react';
 import { userService } from '../services/userService';
 
 // 공급자(provider) 기준 아이콘 맵핑 테이블
@@ -12,7 +12,7 @@ const PROVIDER_META_MAP: { [key: string]: { icon: React.ReactNode } } = {
   'Meta': { icon: <Sparkles size={20} /> },
 };
 
-// 백엔드 응답 데이터 구조 정의 (provider 필드 추가)
+// 백엔드 응답 데이터 구조 정의
 interface LlmModelData {
   id: string;
   name: string;
@@ -31,7 +31,10 @@ const Settings: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [isModelSaving, setIsModelSaving] = useState(false);
 
-  //개인 저장소 용량 상태 및 로딩 상태
+  // 프로젝트 일괄 클린업 처리 로딩 락(Lock) 스위치
+  const [isClearingProjects, setIsClearingProjects] = useState(false);
+
+  // 개인 저장소 용량 상태 및 로딩 상태
   const [storageUsageBytes, setStorageUsageBytes] = useState<number>(0);
   const [isStorageLoading, setIsStorageLoading] = useState<boolean>(false);
 
@@ -43,6 +46,36 @@ const Settings: React.FC = () => {
     const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+  };
+
+  // 프로젝트 저장소 일괄 삭제 컨펌 및 요청 핸들러
+  const handleClearAllProjects = async () => {
+    const firstCheck = window.confirm(
+      "[경고] 정말로 모든 프로젝트를 완전 초기화하시겠습니까?\n이 작업은 되돌릴 수 없으며, 생성된 모든 설계 코드가 영구 삭제됩니다."
+    );
+    if (!firstCheck) return;
+
+    const secondCheck = window.confirm(
+      " 최종 확인: 현재 서버에서 빌드가 한창 진행 중인 파이프라인 프로젝트를 제외한 모든 데이터가 완전 포맷됩니다. 계속 진행할까요?"
+    );
+    if (!secondCheck) return;
+
+    try {
+      setIsClearingProjects(true);
+      
+      // userService에 새로 뚫어놓은 일괄 청소 함수 호출
+      const responseMessage = await userService.clearAllProjects();
+      alert(responseMessage || "모든 프로젝트가 초기화 되었습니다.");
+      
+      // 삭제 완료 후, 메인터넌스 섹션의 용량 상태도 실시간으로 다시 호출해 화면 동기화 리프레시
+      await formatStorageUsage();
+
+    } catch (error: any) {
+      console.error("초기화 프로세스 실패:", error);
+      alert("현재 작업 중인 빌드 파이프라인이 존재하여 저장소 초기화가 안전하게 거부되었습니다.");
+    } finally {
+      setIsClearingProjects(false);
+    }
   };
 
   const fetchLlmModels = async () => {
@@ -154,7 +187,7 @@ const Settings: React.FC = () => {
         userInfo?.defaultModel ||
         userInfo?.data?.model ||
         userInfo?.data?.defaultModel ||
-        modelId; // 못 읽으면 그래도 사용자가 누른 값 반영
+        modelId;
       
       setActiveModelId(appliedModel);
       setSelectedModelId(appliedModel);
@@ -306,6 +339,7 @@ const Settings: React.FC = () => {
             </div>
           </section>
 
+          {/* 우측 유지보수 섹션 */}
           <section className="bg-white/5 border border-white/10 rounded-[32px] p-6 flex flex-col justify-between min-h-[160px]">
             <h3 className="text-base font-bold mb-2 flex items-center gap-2">
               <HardDrive size={20} className="text-orange-400" /> Maintenance
@@ -317,8 +351,13 @@ const Settings: React.FC = () => {
                 </p>
                 <p className="text-[10px] text-gray-400 uppercase font-bold tracking-widest mt-0.5">AI Storage Usage</p>
               </div>
-              <button className="p-3 bg-red-500/10 text-red-400 rounded-xl hover:bg-red-500 hover:text-white border border-red-500/10 transition-all shadow-md">
-                <Trash2 size={18} />
+              
+              <button 
+                onClick={handleClearAllProjects}
+                disabled={isClearingProjects}
+                className="p-3 bg-red-500/10 text-red-400 rounded-xl hover:bg-red-500 hover:text-white border border-red-500/10 transition-all shadow-md cursor-pointer disabled:opacity-40"
+              >
+                {isClearingProjects ? <RefreshCw size={18} className="animate-spin" /> : <Trash2 size={18} />}
               </button>
             </div>
           </section>
