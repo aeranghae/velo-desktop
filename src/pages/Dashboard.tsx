@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Code, Clock, ChevronRight, Layout, Cpu, BookOpenText, RefreshCw } from 'lucide-react';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
+import { Code, Clock, ChevronRight, Layout, Cpu, HardDrive } from 'lucide-react';
+import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import API from '../services'; 
 import { FrameworkStats } from '../services/statistics';
 import { projectService, ProjectResponseDto } from '../services/projectService'; 
@@ -16,6 +16,15 @@ interface ActivityLogItem {
   type: string;
 }
 
+interface ServerStatusResponse {
+  status: string;       
+  uptime: number;       
+  cpuUsage: number;     
+  totalMemory: number;  
+  freeMemory: number;   
+  usedMemory: number;   
+}
+
 const Dashboard: React.FC<DashboardProps> = ({ setActiveMenu, onSelectProject }) => {
   // 백엔드 통계 데이터
   const [apiStats, setApiStats] = useState<FrameworkStats>({
@@ -25,45 +34,65 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveMenu, onSelectProject })
 
   // 최근 프로젝트 목록
   const [realRecentProjects, setRealRecentProjects] = useState<ProjectResponseDto[]>([]);
-  
-  // 데이터 동기화 감지용 로딩 스위치
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-
-  // 활동 피드 목록을 실시간으로 반영 가능하도록 컴포넌트 상태로 관리
   const [activityLogs, setActivityLogs] = useState<ActivityLogItem[]>([]);
 
-  // 컴포넌트 마운트 시 기술 스택 분포 통계 및 실제 프로젝트 목록 호출
+  const [serverData, setServerData] = useState<ServerStatusResponse | null>(null);
+  const [isConnectingSSE, setIsConnectingSSE] = useState<boolean>(true);
+  const [sseError, setSseError] = useState<boolean>(false);
+
+  // 바이트 단위를 GB 포맷으로 깔끔하게 바꾸는 헬퍼
+  const formatBytes = (bytes: number) => {
+    if (!bytes || bytes <= 0) return '0.00 GB';
+    return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+  };
+
+  const formatUptime = (ms: number) => {
+    if (!ms) return '연결 대기 중';
+    const seconds = Math.floor(ms / 1000);
+    const days = Math.floor(seconds / (3600 * 24));
+    const hours = Math.floor((seconds % (3600 * 24)) / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    return `${days}일 ${hours}시간 ${minutes}분`;
+  };
+
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
-        setIsLoading(true);
-        
-        // 1. 통계 데이터 패치
         const statsRes = await API.get('/api/storage/projects/framework/statistics');
         if (statsRes.data) {
           setApiStats(statsRes.data);
         }
 
-        // 2. 내 프로젝트 리스트 긁어오기
         const projectsData = await projectService.getProjects();
         if (Array.isArray(projectsData)) {
-          // 최근에 수정한 프로젝트가 상단에 오도록 정렬 후, 딱 3개만 도려내기
           const sorted = [...projectsData]
             .sort((a, b) => new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime())
             .slice(0, 3);
           setRealRecentProjects(sorted);
         }
-
       } catch (error) {
-        console.error('대시보드 메트릭 및 프로젝트 스트림 로드 실패:', error);
-      } finally {
-        setIsLoading(false);
+        console.error('대시보드 데이터 로드 실패:', error);
       }
     };
 
     fetchDashboardData();
 
-    //SSE 스트림으로부터 넘어오는 활동 로그 실시간 전역 이벤트 리스너 등록
+    const disconnectStream = projectService.connectServerStatusStream(
+      () => {
+        setIsConnectingSSE(false);
+        setSseError(false);
+      },
+      (data) => {
+        setServerData(data);
+        setIsConnectingSSE(false);
+        setSseError(false);
+      },
+      () => {
+        setSseError(true);
+        setIsConnectingSSE(false);
+      }
+    );
+
     const handleActivityUpdate = (e: Event) => {
       const customEvent = e as CustomEvent<ActivityLogItem>;
       if (customEvent.detail) {
@@ -72,7 +101,9 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveMenu, onSelectProject })
     };
 
     window.addEventListener('dashboard-activity-update', handleActivityUpdate);
+    
     return () => {
+      disconnectStream();
       window.removeEventListener('dashboard-activity-update', handleActivityUpdate);
     };
   }, []);
@@ -84,22 +115,11 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveMenu, onSelectProject })
       let name = key.toUpperCase();
       let color = '#6b7280'; 
 
-      if (rawKey.includes('spring')) {
-        name = 'SPRING BOOT';
-        color = '#10b981';
-      } else if (rawKey.includes('react')) {
-        name = 'REACT';
-        color = '#3b82f6';
-      } else if (rawKey.includes('next')) {
-        name = 'NEXT.JS';
-        color = '#38bdf8'; 
-      } else if (rawKey.includes('cpp')) {
-        name = 'C++';
-        color = '#f59e0b';
-      } else if (rawKey.includes('python')) {
-        name = 'PYTHON';
-        color = '#a855f7';
-      }
+      if (rawKey.includes('spring')) { name = 'SPRING BOOT'; color = '#10b981'; } 
+      else if (rawKey.includes('react')) { name = 'REACT'; color = '#3b82f6'; } 
+      else if (rawKey.includes('next')) { name = 'NEXT.JS'; color = '#38bdf8'; } 
+      else if (rawKey.includes('cpp')) { name = 'C++'; color = '#f59e0b'; } 
+      else if (rawKey.includes('python')) { name = 'PYTHON'; color = '#a855f7'; }
 
       return { name, value, color };
     })
@@ -108,12 +128,6 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveMenu, onSelectProject })
   const isEmpty = techStackData.length === 0;
   const chartData = isEmpty ? [{ name: '프로젝트 없음', value: 1, color: 'rgba(255,255,255,0.05)' }] : techStackData;
 
-  const stats = [
-    { label: '전체 프로젝트', value: String(apiStats.totalProjectCount), icon: <Layout size={18} />, color: 'text-blue-400' },
-    { label: '시스템 상태', value: '정상', icon: <Cpu size={18} />, color: 'text-green-400' },
-  ];
-
-  //최근 프로젝트 카드를 클릭했을 때 해당 상세 리그로 다이렉트 순간이동하는 핸들러
   const handleRecentCardClick = (uuid: string) => {
     if (onSelectProject) {
       onSelectProject(uuid);
@@ -123,81 +137,92 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveMenu, onSelectProject })
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full overflow-hidden animate-in fade-in duration-700 select-none">
+    <div className="flex-1 flex flex-col h-full overflow-hidden animate-in fade-in duration-700 select-none text-white">
       
-      {/* 1. 상단 카드 대시보드 영역 */}
+      {/* 1. 상단 관제 카드 영역 (한글 직관성 패치 버전) */}
       <div className="grid grid-cols-12 gap-6 mb-8 shrink-0">
-        <div className="col-span-3 bg-white/5 border border-white/10 p-6 rounded-[24px] backdrop-blur-md flex items-center justify-between group hover:bg-white/[0.07] transition-all h-[140px]">
-          <div>
-            <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">{stats[0].label}</p>
-            <h3 className="text-2xl font-black tracking-tight">{stats[0].value}</h3>
+        
+        {/* 카드 1: 총 프로젝트 */}
+        <div className="col-span-3 bg-white/5 border border-white/10 p-6 rounded-[24px] flex items-center justify-between group hover:bg-white/[0.07] transition-all h-[140px]">
+          <div className="min-w-0">
+            <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">전체 프로젝트</p>
+            <h3 className="text-2xl font-black tracking-tight">{apiStats.totalProjectCount}개</h3>
+            <p className="text-[10px] text-gray-400 mt-2 truncate">
+              {serverData ? `가동: ${formatUptime(serverData.uptime)}` : '서버 가동 시간 확인 중'}
+            </p>
           </div>
-          <div className={`p-3 rounded-2xl bg-white/5 ${stats[0].color}`}>{stats[0].icon}</div>
+          <div className="p-3 rounded-2xl bg-white/5 text-blue-400 shrink-0 ml-2"><Layout size={18} /></div>
         </div>
 
-        <div className="col-span-3 bg-white/5 border border-white/10 p-6 rounded-[24px] backdrop-blur-md flex items-center justify-between group hover:bg-white/[0.07] transition-all h-[140px]">
-          <div>
-            <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">{stats[1].label}</p>
-            <h3 className="text-2xl font-black tracking-tight">{stats[1].value}</h3>
+        {/* 카드 2: 시스템 상태 (정상 / 비정상 / 점검중 패치) */}
+        <div className="col-span-3 bg-white/5 border border-white/10 p-6 rounded-[24px] flex items-center justify-between group hover:bg-white/[0.07] transition-all h-[140px]">
+          <div className="min-w-0 flex flex-col justify-between h-full py-0.5">
+            <div>
+              <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">인프라 코어 상태</p>
+              {/* 에러 시 '비정상', 스트림 미유입 시 '점검 중', 데이터 수신 시 '정상 (X%)' */}
+              <h3 className={`text-2xl font-black tracking-tight truncate ${sseError ? 'text-rose-500' : isConnectingSSE || !serverData ? 'text-amber-400' : 'text-green-400'}`}>
+                {sseError ? '비정상' : isConnectingSSE || !serverData ? '점검 중' : `정상 (${serverData.cpuUsage}%)`}
+              </h3>
+            </div>
+            <div className="flex items-center gap-1.5 mt-1">
+              <span className={`w-1.5 h-1.5 rounded-full ${sseError ? 'bg-rose-500' : isConnectingSSE || !serverData ? 'bg-amber-400 animate-pulse' : 'bg-emerald-400 animate-pulse'}`} />
+              <span className="text-[9px] text-gray-500 font-bold uppercase tracking-widest">
+                {sseError ? 'SYSTEM ERROR' : isConnectingSSE || !serverData ? 'TUNING' : 'LIVE TELEMETRY'}
+              </span>
+            </div>
           </div>
-          <div className={`p-3 rounded-2xl bg-white/5 ${stats[1].color}`}>{stats[1].icon}</div>
+          <div className="p-3 rounded-2xl bg-white/5 text-purple-400 shrink-0 ml-2"><Cpu size={18} /></div>
         </div>
 
-        {/* 세 번째 카드: 기술 스택 분포 박스 */}
-        <div className="col-span-6 bg-white/5 border border-white/10 p-6 rounded-[24px] backdrop-blur-md flex items-center shadow-xl h-[140px]">
-          <div className="shrink-0 flex flex-col gap-1 ml-2 mr-8">
-            <h3 className="text-sm font-bold flex items-center gap-2">
-              <BookOpenText size={16} className="text-purple-400" /> 기술 스택 분포
+        {/* 카드 3: 서버 RAM 사용량 (정확한 디폴트 값 바인딩 및 0GB 표기 튜닝) */}
+        <div className="col-span-3 bg-white/5 border border-white/10 p-6 rounded-[24px] flex items-center justify-between group hover:bg-white/[0.07] transition-all h-[140px]">
+          <div className="min-w-0">
+            <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">서버 RAM 사용량</p>
+            {/* 데이터 유입 전이어도 기본 0.00 GB 분모를 띄워 가독성 유지 */}
+            <h3 className="text-xl font-black tracking-tight font-mono mt-1 truncate text-orange-400">
+              {sseError ? '확인 불가' : isConnectingSSE || !serverData ? '0.00 GB' : formatBytes(serverData.usedMemory)}
             </h3>
-            <p className="text-[10px] text-gray-500 font-medium">최근 프로젝트 사용 비율</p>
+            <p className="text-[10px] text-gray-500 font-semibold mt-2 truncate">
+              최대 할당: {serverData && serverData.totalMemory ? formatBytes(serverData.totalMemory) : '16.00 GB'}
+            </p>
           </div>
-          
-          <div className="flex-1 h-full relative flex items-center justify-center">
-            {isLoading ? (
-              /* 차트 박스 영역 안에서만 우아하게 도는 마이크로 로딩 장치 */
-              <div className="flex items-center gap-2 text-gray-500 text-xs font-mono">
-                <RefreshCw className="animate-spin text-purple-400" size={14} />
-                <span>LOADING GRAPH...</span>
-              </div>
-            ) : (
-              /* 데이터 로드가 끝났을 때만 완벽하게 래핑되어 켜지는 진짜 그래픽 파트 */
-              <div className="w-full h-full flex items-center justify-between" key={apiStats.totalProjectCount}>
-                
-                {/* 왼쪽: 도넛 스키마 */}
-                <div className="w-[110px] h-[110px] relative shrink-0">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie data={chartData} cx="50%" cy="50%" innerRadius={35} outerRadius={48} paddingAngle={isEmpty ? 0 : 5} dataKey="value" cornerRadius={6}>
-                        {chartData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />
-                        ))}
-                      </Pie>
-                      {!isEmpty && <Tooltip contentStyle={{ background: '#1C1C1E', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', fontSize: '10px' }} />}
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
+          <div className="p-3 rounded-2xl bg-white/5 text-orange-400 shrink-0 ml-2"><HardDrive size={18} /></div>
+        </div>
 
-                {/* 오른쪽: 하이퍼 커스텀 격리 범례 보드 */}
-                <div className="flex-1 flex flex-col gap-2 pl-8 overflow-y-auto max-h-[110px] custom-scrollbar">
-                  {techStackData.map((entry, index) => (
-                    <div key={index} className="flex items-center justify-between w-full pr-2 text-[11px] font-bold text-gray-400">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: entry.color }} />
-                        <span className="truncate font-mono uppercase tracking-tight text-gray-300">{entry.name}</span>
-                      </div>
-                      <span className="text-gray-600 font-mono text-[10px] shrink-0 ml-2">{entry.value}개</span>
-                    </div>
-                  ))}
-                </div>
+        {/* 카드 4: 기술 스택 분포 도넛형 */}
+        <div className="col-span-3 bg-white/5 border border-white/10 p-5 rounded-[24px] shadow-xl h-[140px]">
+          <div className="flex items-center justify-between w-full h-full min-h-0">
+            <div className="w-[68px] h-[68px] relative shrink-0">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={chartData} cx="50%" cy="50%" innerRadius={20} outerRadius={30} paddingAngle={isEmpty ? 0 : 4} dataKey="value" cornerRadius={4}>
+                    {chartData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />
+                    ))}
+                  </Pie>
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
 
-              </div>
-            )}
+            <div className="flex-1 flex flex-col gap-1.5 pl-3 overflow-y-auto max-h-[110px] custom-scrollbar">
+              {techStackData.slice(0, 3).map((entry, index) => (
+                <div key={index} className="flex items-center justify-between w-full text-[10px] font-bold text-gray-400">
+                  <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                    <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: entry.color }} />
+                    <span className="font-mono uppercase tracking-tight text-gray-300 whitespace-nowrap">{entry.name}</span>
+                  </div>
+                  <span className="text-gray-500 font-mono text-[9px] shrink-0 ml-1.5">{entry.value}개</span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>
 
+      {/* 2. 하단 프로젝트 목록 및 피드 */}
       <div className="flex-1 grid grid-cols-12 gap-6 min-h-0 overflow-hidden">
-        {/* 2. 최근 프로젝트 목록 (왼쪽) */}
+        
+        {/* 최근 프로젝트 목록 */}
         <div className="col-span-8 flex flex-col min-h-0">
           <div className="flex justify-between items-end mb-5 px-1">
             <div>
@@ -254,7 +279,7 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveMenu, onSelectProject })
           </div>
         </div>
 
-        {/* 3. 활동 피드 (오른쪽) */}
+        {/* 활동 피드 */}
         <div className="col-span-4 flex flex-col min-h-0">
           <div className="mb-5 px-1">
             <h3 className="text-xl font-bold flex items-center gap-2">활동 피드</h3>
@@ -280,6 +305,7 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveMenu, onSelectProject })
             </div>
           </div>
         </div>
+
       </div>
     </div>
   );

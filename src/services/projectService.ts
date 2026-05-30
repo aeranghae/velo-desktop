@@ -232,4 +232,90 @@ export const projectService = {
       throw error;
     }
   },
+
+  // 5초 주기 SSE 스트림 파이프라인
+  // 필드명 자동 파싱 및 원시 로그 추적 탑재
+connectServerStatusStream: (
+  onConnect: () => void,
+  onStatusReceived: (data: any) => void,
+  onErrorOccurred: () => void
+): (() => void) => {
+
+  const token = localStorage.getItem(TOKEN_KEY) || '';
+  const controller = new AbortController();
+
+  function parseAndDispatch(raw: string) {
+    try {
+      const data = JSON.parse(raw);
+      onStatusReceived({
+        status: data.status || 'UP',
+        uptime: data.uptime || 0,
+        cpuUsage: data.cpuUsage ?? data.cpu_usage ?? data.cpu ?? 0,
+        totalMemory: data.totalMemory || data.total_memory || 0,
+        freeMemory: data.freeMemory || data.free_memory || 0,
+        usedMemory: data.usedMemory || data.used_memory || data.used || 0,
+      });
+    } catch (err) {
+      console.error("JSON 파싱 에러:", err);
+    }
+  }
+
+  async function connect() {
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/server/status/stream`, {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${token}` },
+        signal: controller.signal,
+      });
+
+      if (!response.ok || !response.body) {
+        onErrorOccurred();
+        return;
+      }
+
+      onConnect();
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() ?? '';
+
+        let eventName = '';
+        let dataLine = '';
+
+        for (const line of lines) {
+          if (line.startsWith('event:')) {
+            eventName = line.replace('event:', '').trim();
+          } else if (line.startsWith('data:')) {
+            dataLine = line.replace('data:', '').trim();
+          } else if (line === '') {
+            if (dataLine) {
+              if (eventName === 'connect' || dataLine.includes('SSE Connected!')) {
+                console.log('📡 백엔드 연결 인사말 수신');
+              } else {
+                parseAndDispatch(dataLine);
+              }
+            }
+            eventName = '';
+            dataLine = '';
+          }
+        }
+      }
+    } catch (err: any) {
+      if (err?.name === 'AbortError') return;
+      console.error('SSE 스트림 오류:', err);
+      onErrorOccurred();
+    }
+  }
+
+  connect();
+  return () => controller.abort();
+}
 };

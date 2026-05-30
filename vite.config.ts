@@ -28,6 +28,18 @@ export default defineConfig({
         : {},
     }),
   ],
+
+  //일렉트론 렌더러가 서버 주소 찾아갈 수 있도록
+  server: {
+    proxy: {
+      '/api': {
+        target: 'https://oxxultus.cloud',
+        changeOrigin: true,
+        secure: false,
+      }
+    }
+  },
+  
   // 3. (선택사항) 경로 별칭(@) 설정을 위해 추가
   resolve: {
     alias: {
