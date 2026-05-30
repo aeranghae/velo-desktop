@@ -197,7 +197,10 @@ const handleDownloadProject = async (uuid: string, projectName: string) => {
 
     try {
       setIsLoading(true); 
-      await projectService.deleteProject(projectToDelete.uuid);
+      const resData = await projectService.deleteProject(projectToDelete.uuid);
+
+      alert(resData.message || "프로젝트가 성공적으로 삭제되었습니다.");
+
       setProjectToDelete(null);
       setActiveMenuId(null);
       await fetchProjects();
