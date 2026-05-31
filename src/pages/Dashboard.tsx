@@ -46,15 +46,6 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveMenu, onSelectProject })
     return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
   };
 
-  const formatUptime = (ms: number) => {
-    if (!ms) return '연결 대기 중';
-    const seconds = Math.floor(ms / 1000);
-    const days = Math.floor(seconds / (3600 * 24));
-    const hours = Math.floor((seconds % (3600 * 24)) / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    return `${days}일 ${hours}시간 ${minutes}분`;
-  };
-
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
@@ -142,31 +133,27 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveMenu, onSelectProject })
       {/* 1. 상단 관제 카드 영역 (한글 직관성 패치 버전) */}
       <div className="grid grid-cols-12 gap-6 mb-8 shrink-0">
         
-        {/* 카드 1: 총 프로젝트 */}
+        {/* 카드 1: 전체 프로젝트 */}
         <div className="col-span-3 bg-white/5 border border-white/10 p-6 rounded-[24px] flex items-center justify-between group hover:bg-white/[0.07] transition-all h-[140px]">
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">전체 프로젝트</p>
             <h3 className="text-2xl font-black tracking-tight">{apiStats.totalProjectCount}개</h3>
-            <p className="text-[10px] text-gray-400 mt-2 truncate">
-              {serverData ? `가동: ${formatUptime(serverData.uptime)}` : '서버 가동 시간 확인 중'}
-            </p>
           </div>
           <div className="p-3 rounded-2xl bg-white/5 text-blue-400 shrink-0 ml-2"><Layout size={18} /></div>
         </div>
 
-        {/* 카드 2: 시스템 상태 (정상 / 비정상 / 점검중 패치) */}
+        {/* 카드 2: 시스템 상태 */}
         <div className="col-span-3 bg-white/5 border border-white/10 p-6 rounded-[24px] flex items-center justify-between group hover:bg-white/[0.07] transition-all h-[140px]">
-          <div className="min-w-0 flex flex-col justify-between h-full py-0.5">
+          <div className="min-w-0 flex flex-col justify-between h-full py-0.5 flex-1">
             <div>
               <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">인프라 코어 상태</p>
-              {/* 에러 시 '비정상', 스트림 미유입 시 '점검 중', 데이터 수신 시 '정상 (X%)' */}
-              <h3 className={`text-2xl font-black tracking-tight truncate ${sseError ? 'text-rose-500' : isConnectingSSE || !serverData ? 'text-amber-400' : 'text-green-400'}`}>
-                {sseError ? '비정상' : isConnectingSSE || !serverData ? '점검 중' : `정상 (${serverData.cpuUsage}%)`}
+              <h3 className={`text-2xl font-black tracking-tight whitespace-nowrap ${sseError ? 'text-rose-500' : isConnectingSSE || !serverData ? 'text-amber-400' : 'text-green-400'}`}>
+                {sseError ? '비정상' : isConnectingSSE || !serverData ? '점검 중' : `정상 (${Math.round(serverData.cpuUsage)}%)`}
               </h3>
             </div>
             <div className="flex items-center gap-1.5 mt-1">
               <span className={`w-1.5 h-1.5 rounded-full ${sseError ? 'bg-rose-500' : isConnectingSSE || !serverData ? 'bg-amber-400 animate-pulse' : 'bg-emerald-400 animate-pulse'}`} />
-              <span className="text-[9px] text-gray-500 font-bold uppercase tracking-widest">
+              <span className="text-[9px] text-gray-500 font-bold uppercase tracking-widest whitespace-nowrap">
                 {sseError ? 'SYSTEM ERROR' : isConnectingSSE || !serverData ? 'TUNING' : 'LIVE TELEMETRY'}
               </span>
             </div>
@@ -174,16 +161,15 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveMenu, onSelectProject })
           <div className="p-3 rounded-2xl bg-white/5 text-purple-400 shrink-0 ml-2"><Cpu size={18} /></div>
         </div>
 
-        {/* 카드 3: 서버 RAM 사용량 (정확한 디폴트 값 바인딩 및 0GB 표기 튜닝) */}
+        {/* 카드 3: 서버 RAM 사용량 */}
         <div className="col-span-3 bg-white/5 border border-white/10 p-6 rounded-[24px] flex items-center justify-between group hover:bg-white/[0.07] transition-all h-[140px]">
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">서버 RAM 사용량</p>
-            {/* 데이터 유입 전이어도 기본 0.00 GB 분모를 띄워 가독성 유지 */}
-            <h3 className="text-xl font-black tracking-tight font-mono mt-1 truncate text-orange-400">
+            <h3 className="text-xl font-black tracking-tight font-mono mt-1 text-orange-400 whitespace-nowrap">
               {sseError ? '확인 불가' : isConnectingSSE || !serverData ? '0.00 GB' : formatBytes(serverData.usedMemory)}
             </h3>
-            <p className="text-[10px] text-gray-500 font-semibold mt-2 truncate">
-              최대 할당: {serverData && serverData.totalMemory ? formatBytes(serverData.totalMemory) : '16.00 GB'}
+            <p className="text-[10px] text-gray-500 font-semibold mt-2 block overflow-hidden text-ellipsis whitespace-nowrap">
+              최대 할당: {serverData && serverData.totalMemory ? formatBytes(serverData.totalMemory) : '3.79 GB'}
             </p>
           </div>
           <div className="p-3 rounded-2xl bg-white/5 text-orange-400 shrink-0 ml-2"><HardDrive size={18} /></div>
