@@ -8,6 +8,7 @@ import Settings from './pages/Settings';
 import LoginPage from './pages/Login';
 import ProjectDetail from './pages/ProjectDetail';
 import LandingPage from './pages/LandingPage';
+import Pricing from './pages/Pricing';
 import './assets/index.css';
 
 // 백엔드 폴링 설계 규격에 맞춘 진행 상태 타입 정의
@@ -85,6 +86,9 @@ function App() {
         break;
       case 'library':
         setBgConfig({ orb1: 'bg-emerald-600/15', orb2: 'bg-teal-600/15', pos1: 'top-[-5%] right-[-5%]', pos2: 'bottom-[-5%] left-[-5%]' });
+        break;
+      case 'pricing':
+        setBgConfig({ orb1: 'bg-emerald-500/15', orb2: 'bg-blue-500/15', pos1: 'top-[20%] left-[-5%]', pos2: 'bottom-[-10%] right-[30%]' });
         break;
     }
   }, [activeMenu]);
@@ -170,6 +174,7 @@ function App() {
           />
         )}
         {activeMenu === 'settings' && <Settings />}
+        {activeMenu === 'pricing' && <Pricing />}
       </main>
     </div>
   );
