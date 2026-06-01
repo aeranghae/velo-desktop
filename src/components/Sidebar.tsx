@@ -42,7 +42,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeMenu, setActiveMenu }) => {
 
   return (
     <aside className="w-64 h-full relative flex flex-col border-r border-white/10 bg-black/20 backdrop-blur-xl pt-8 z-20 shrink-0 select-none font-sans">
-      <div className="px-6 pb-6 text-2xl font-black bg-gradient-to-r from-blue-500 to-purple-500 bg-clip-text text-transparent italic tracking-tighter uppercase">AERANGHAE</div>
+      <div className="px-6 pb-6 text-4xl font-black bg-gradient-to-r from-blue-500 to-purple-500 bg-clip-text text-transparent italic tracking-tighter uppercase">VELO</div>
 
       <nav className="flex-1 px-4 space-y-2">
         <SidebarItem icon={<Home size={20} />} text="Dashboard" active={activeMenu === 'dashboard'} onClick={() => setActiveMenu('dashboard')} />
