@@ -59,13 +59,21 @@ export const userService = {
   },
 
   // 프로젝트 메모리 삭제
-  clearAllProjects: async (): Promise<string> => {
-    try {
-      const response = await API.delete('/api/storage/projects/clean');
-      return response.data; // 성공 시 백엔드에서 오는 "모든 프로젝트가 초기화 되었습니다." 메시지 반환
-    } catch (error) {
-      console.error("프로젝트 전체 초기화 API 에러:", error);
-      throw error;
+clearAllProjects: async (): Promise<string> => {
+  const DEFAULT_MSG = "모든 프로젝트가 초기화 되었습니다.";
+  try {
+    const response = await API.delete('/api/storage/projects/clean');
+    const data = response.data;
+
+    //서버가 어떤 형태로 주든 문자열로 정규화
+    if (typeof data === 'string') return data;
+    if (data && typeof data === 'object') {
+      return data.message || data.msg || data.result || DEFAULT_MSG;
     }
+    return DEFAULT_MSG;
+  } catch (error) {
+    console.error("프로젝트 전체 초기화 API 에러:", error);
+    throw error;
   }
+}
 };

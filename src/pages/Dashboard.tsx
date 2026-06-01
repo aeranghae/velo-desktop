@@ -4,16 +4,11 @@ import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import API from '../services'; 
 import { FrameworkStats } from '../services/statistics';
 import { projectService, ProjectResponseDto } from '../services/projectService'; 
+import { getActivityLogs, ActivityLogItem } from '../utils/activityLogger';
 
 interface DashboardProps {
   setActiveMenu: React.Dispatch<React.SetStateAction<string>>;
   onSelectProject?: (uuid: string) => void; 
-}
-
-interface ActivityLogItem {
-  text: string;
-  time: string;
-  type: string;
 }
 
 interface ServerStatusResponse {
@@ -34,7 +29,9 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveMenu, onSelectProject })
 
   // 최근 프로젝트 목록
   const [realRecentProjects, setRealRecentProjects] = useState<ProjectResponseDto[]>([]);
-  const [activityLogs, setActivityLogs] = useState<ActivityLogItem[]>([]);
+  const [activityLogs, setActivityLogs] = useState<ActivityLogItem[]>(
+  () => getActivityLogs()
+);
 
   const [serverData, setServerData] = useState<ServerStatusResponse | null>(null);
   const [isConnectingSSE, setIsConnectingSSE] = useState<boolean>(true);

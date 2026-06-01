@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Cpu, Layout, HardDrive, Save, CheckCircle2, Sparkles, BrainCircuit, BotMessageSquare, Bell, Trash2, RefreshCw } from 'lucide-react';
 import { userService } from '../services/userService';
+import { logActivity } from '../utils/activityLogger';
 
 // 공급자(provider) 기준 아이콘 맵핑 테이블
 const PROVIDER_META_MAP: { [key: string]: { icon: React.ReactNode } } = {
@@ -66,6 +67,8 @@ const Settings: React.FC = () => {
       // userService에 새로 뚫어놓은 일괄 청소 함수 호출
       const responseMessage = await userService.clearAllProjects();
       alert(responseMessage || "모든 프로젝트가 초기화 되었습니다.");
+
+      logActivity(`모든 프로젝트 저장소가 **초기화**되었습니다.`, 'warning');
       
       // 삭제 완료 후, 메인터넌스 섹션의 용량 상태도 실시간으로 다시 호출해 화면 동기화 리프레시
       await formatStorageUsage();
@@ -191,6 +194,10 @@ const Settings: React.FC = () => {
       
       setActiveModelId(appliedModel);
       setSelectedModelId(appliedModel);
+
+      const modelLabel = aiModels.find(m => m.id === appliedModel)?.name || appliedModel;
+      logActivity(`AI 엔진이 **${modelLabel}**(으)로 전환되었습니다.`, 'success');
+
       alert(`AI 엔진이 ${appliedModel}(으)로 변경되었습니다. `);
     } catch (error: any) {
       console.error("모델 변경 실패:", error);
@@ -217,6 +224,9 @@ const Settings: React.FC = () => {
         localStorage.setItem('aeranghae_user_name', updatedName);
         setUserName(updatedName);
         window.dispatchEvent(new Event('user-name-changed'));
+
+        logActivity(`사용자 닉네임이 **${updatedName}**(으)로 변경되었습니다.`, 'success');  
+
         alert("설정이 저장되었습니다.");
       } else {
         console.warn("백엔드 응답 데이터 구조에 name이나 nickname 필드가 없습니다.");
