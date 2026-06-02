@@ -1,6 +1,8 @@
 @import "tailwindcss";
 
-/* Tailwind v4 방식의 커스텀 테마 설정 */
+/* ========================================================
+    Tailwind v4 프리미엄 커스텀 디자인 테마 규격 정의
+======================================================== */
 @theme {
   --color-mac-bg: #1C1C1E;
   --color-mac-sidebar: rgba(44, 44, 46, 0.4);
@@ -8,15 +10,32 @@
   --radius-mac: 24px;
 }
 
+/* ========================================================
+    스크롤 잠금 해제
+======================================================== */
+html, #root {
+  min-height: 220vh !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+}
+
+body {
+  min-height: 220vh !important;
+  overflow-x: hidden !important;
+  background: #07081a; /* 단색 폴백 (그라데이션은 LandingPage div에서 처리) */
+}
+
 :root {
-  background-color: var(--color-mac-bg);
   color: white;
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
-/* 프로토타입의 핵심: 글래스모피즘 효과 */
+/* ========================================================
+   로그인 화면 제외 전용 UI 컴포넌트 클래스 레이어
+======================================================== */
 @layer components {
+  /* 하이엔드 글래스모피즘 플레이트 */
   .glass-card {
     background: rgba(255, 255, 255, 0.05);
     backdrop-filter: blur(40px);
@@ -25,6 +44,7 @@
     box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
   }
 
+  /* 인풋 필드 포커싱 효과 */
   .mac-input {
     background: rgba(0, 0, 0, 0.3);
     border: 1px solid rgba(255, 255, 255, 0.1);
@@ -37,83 +57,98 @@
   }
 }
 
-/* 움직이는 배경 오브(Orb) 애니메이션 */
-@keyframes float {
-  0% { transform: translate(0, 0); }
-  50% { transform: translate(30px, -30px); }
-  100% { transform: translate(0, 0); }
-}
-
-.animate-float {
-  animation: float 10s ease-in-out infinite;
-}
-
-@keyframes shimmer {
-  0% { transform: translateX(-100%); }
-  100% { transform: translateX(100%); }
-}
-
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
-/* ========================================
-   커스텀 스크롤바 - 가로/세로 모두 어두운 톤으로 통일
-======================================== */
-.custom-scrollbar::-webkit-scrollbar {
-  width: 6px;
-  height: 6px; 
-}
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: transparent;
-}
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 10px;
-}
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.2);
-}
-.custom-scrollbar::-webkit-scrollbar-corner {
-  background: transparent;
-}
-
-.custom-scrollbar {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
-}
-
-/* 하이라이터 내부 스크롤바 처리 */
-pre[class*="language-"]::-webkit-scrollbar {
+/* ========================================================
+   다크 모드 통합 커스텀 스크롤바 디자인
+======================================================== */
+::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
-pre[class*="language-"]::-webkit-scrollbar-track {
+::-webkit-scrollbar-track {
   background: transparent;
 }
-pre[class*="language-"]::-webkit-scrollbar-thumb {
+::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.1);
   border-radius: 10px;
 }
-pre[class*="language-"]::-webkit-scrollbar-thumb:hover {
+::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.2);
 }
-pre[class*="language-"]::-webkit-scrollbar-corner {
-  background: transparent;
-}
-pre[class*="language-"] {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
+
+/* ========================================================
+   Generate Button - 시그니처 엑스포넨셜 그라데이션
+======================================================== */
+.generate-button {
+  --gb-scale: 1;
+  --gb-shadow-wide: transparent;
+  --gb-shadow-inset: rgba(255, 255, 255, 0.04);
+  appearance: none;
+  outline: none;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 16px 32px;
+  border-radius: 16px;
+  background-color: #1A1A1E;
+  color: #fff;
+  min-width: 220px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  cursor: pointer;
+  z-index: 10;
+  transform: scale(var(--gb-scale)) translateZ(0);
+  box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.1), inset 0px 1px 1px var(--gb-shadow-inset);
+  transition: transform 0.3s, background-image 0.3s;
 }
 
-/* --- Login Page Styles --- */
+.generate-button span {
+  font-weight: 900;
+  font-size: 13px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+.generate-button__icon {
+  width: 18px;
+  height: 18px;
+  margin-right: 12px;
+  fill: currentColor;
+}
+
+.generate-button:hover {
+  --gb-scale: 1.05;
+  background-image: linear-gradient(135deg, #2563EB 0%, #4F46E5 50%, #7C3AED 100%);
+  border-color: rgba(0, 0, 0, 0.4);
+}
+
+/* ========================================
+    튜브 캔버스의 검정 픽셀 투명화
+   → screen 블렌드로 그라데이션이 비쳐 보이게 됨
+======================================== */
+#canvas-tubes {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  width: 100vw; height: 100vh;
+  display: block;
+  overflow: hidden;
+  mix-blend-mode: screen;
+  background-color: transparent !important;
+}
+
+/* R3F가 만든 canvas 강제 투명화 */
+canvas {
+  background: transparent !important;
+}
+
+/* ========================================
+   3차원 로그인 인프라 서식 패키지 
+======================================== */
 .login-wrapper {
   display: flex;
   justify-content: center;
   align-items: center;
   height: 100vh;
-  background-color: #121214; 
+  background-color: #121214;
 }
 
 .login-container {
@@ -141,21 +176,9 @@ pre[class*="language-"] {
   z-index: 1;
 }
 
-.form-box.login {
-  left: 0;
-  z-index: 2;
-}
-
-.login-container.active .form-box.login {
-  transform: translateX(100%);
-  opacity: 0;
-}
-
-.form-box.register {
-  left: 0;
-  opacity: 0;
-  z-index: 1;
-}
+.form-box.login { left: 0; z-index: 2; }
+.login-container.active .form-box.login { transform: translateX(100%); opacity: 0; }
+.form-box.register { left: 0; opacity: 0; z-index: 1; }
 
 .login-container.active .form-box.register {
   transform: translateX(100%);
@@ -214,9 +237,7 @@ pre[class*="language-"] {
   z-index: 100;
 }
 
-.login-container.active .overlay-container {
-  transform: translateX(-100%);
-}
+.login-container.active .overlay-container { transform: translateX(-100%); }
 
 .overlay {
   background: linear-gradient(135deg, #0a84ff, #5e5ce6);
@@ -229,9 +250,7 @@ pre[class*="language-"] {
   transition: transform 0.6s ease-in-out;
 }
 
-.login-container.active .overlay {
-  transform: translateX(50%);
-}
+.login-container.active .overlay { transform: translateX(50%); }
 
 .overlay-panel {
   position: absolute;
@@ -249,7 +268,6 @@ pre[class*="language-"] {
 
 .overlay-left { transform: translateX(-20%); }
 .login-container.active .overlay-left { transform: translateX(0); }
-
 .overlay-right { right: 0; transform: translateX(0); }
 .login-container.active .overlay-right { transform: translateX(20%); }
 
@@ -262,279 +280,4 @@ pre[class*="language-"] {
   margin-top: 20px;
   cursor: pointer;
   font-weight: bold;
-}
-
-/* ========================================
-   스포트라이트 카드 효과
-======================================== */
-.spotlight-cards {
-  position: relative;
-}
-
-.spotlight-card {
-  --hsl: var(--hue), var(--saturation), var(--lightness);
-  flex: 1 1 14rem;
-  max-width: 22rem;
-  border-radius: 48px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background-color: rgba(255, 255, 255, 0.05);
-  transition: background 400ms ease;
-  will-change: background;
-}
-
-.spotlight-card:hover {
-  background: hsla(var(--hsl), 0.08);
-}
-
-.spotlight-overlay {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  user-select: none;
-  opacity: var(--opacity, 0);
-  -webkit-mask: radial-gradient(
-    var(--spotlight-radius, 25rem) var(--spotlight-radius, 25rem) at var(--x) var(--y),
-    #000 1%,
-    transparent 50%
-  );
-  mask: radial-gradient(
-    var(--spotlight-radius, 25rem) var(--spotlight-radius, 25rem) at var(--x) var(--y),
-    #000 1%,
-    transparent 50%
-  );
-  transition: 400ms mask ease, 400ms -webkit-mask ease;
-  will-change: mask;
-}
-
-.spotlight-card--overlay {
-  background-color: hsla(var(--hsl), 0.15) !important;
-  border-color: hsla(var(--hsl), 1) !important;
-  box-shadow: 0 0 0 1px inset hsl(var(--hsl)),
-              0 0 30px hsla(var(--hsl), 0.3);
-}
-
-/* ========================================
-   Generate Button - 블루→퍼플 그라데이션
-======================================== */
-.generate-button {
-  --gb-star-1-opacity: 0.25;
-  --gb-star-1-scale: 1;
-  --gb-star-2-opacity: 1;
-  --gb-star-2-scale: 1;
-  --gb-star-3-opacity: 0.5;
-  --gb-star-3-scale: 1;
-  --gb-dots-opacity: 0;
-  --gb-scale: 1;
-  --gb-shadow-wide: transparent;
-  --gb-shadow-inset: rgba(255, 255, 255, 0.04);
-  --gb-shadow-outline: 0px;
-
-  appearance: none;
-  outline: none;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  padding: 16px 32px 16px 22px;
-  border-radius: 16px;
-  margin: 0;
-  background-color: #1A1A1E;
-  background-image: none;             
-  color: #6B7280;
-  min-width: 220px;
-  display: flex;
-  align-items: center;
-  position: relative;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-  z-index: 1;
-  transform: scale(var(--gb-scale)) translateZ(0);
-  box-shadow:
-    0px 0px 120px var(--gb-shadow-wide),
-    0px 4px 12px rgba(0, 0, 0, 0.1),
-    0px 1px 2px rgba(0, 0, 0, 0.15),
-    inset 0px 1px 1px var(--gb-shadow-inset),
-    0 0 0 var(--gb-shadow-outline) rgba(139, 92, 246, 0.4);
-  transition: transform 0.3s, background-color 0.3s, background-image 0.3s, box-shadow 0.3s, color 0.3s;
-  font-family: inherit;
-}
-
-.generate-button--disabled {
-  cursor: not-allowed;
-  opacity: 0.5;
-  pointer-events: none;
-}
-
-.generate-button::before {
-  content: '';
-  display: block;
-  position: absolute;
-  right: 20%;
-  height: 20px;
-  left: 20%;
-  bottom: -10px;
-  background: linear-gradient(to right, #93C5FD, #D8B4FE);   
-  filter: blur(12.5px);
-  z-index: 2;
-  clip-path: inset(-200% -30% 10px -30% round 16px);
-  opacity: 0;
-  transition: opacity 0.4s;
-  transform: translateZ(0);
-  pointer-events: none;
-}
-
-.generate-button span {
-  position: relative;
-  z-index: 1;
-  font-weight: 900;
-  font-size: 13px;
-  line-height: 26px;
-  letter-spacing: 0.15em;
-  display: block;
-  text-transform: uppercase;
-}
-
-.generate-button span::before {
-  content: '';
-  background-image: linear-gradient(to right, transparent, #1A1A1E);
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  pointer-events: none;
-  opacity: 0.4;
-  transition: opacity 0.4s;
-}
-
-.generate-button__stroke {
-  mix-blend-mode: hard-light;
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-}
-
-.generate-button__stroke-line {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  fill: none;
-  stroke-width: 0.75px;
-  stroke: #DDD6FE;                     
-  stroke-dasharray: 1.5 14;
-  stroke-dashoffset: 22;
-  opacity: 0;
-}
-
-.generate-button__stroke-line:nth-child(2) {
-  stroke-width: 1px;
-  stroke-opacity: 0.5;
-  filter: blur(3px);
-}
-
-.generate-button__dots {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  z-index: 10;
-  fill: #C4B5FD;                       
-  opacity: var(--gb-dots-opacity);
-  overflow: visible;
-  pointer-events: none;
-}
-
-.generate-button__icon {
-  width: 22px;
-  height: 24px;
-  margin-right: 12px;
-  fill: currentColor;
-  flex-shrink: 0;
-}
-
-.generate-button__icon path:nth-child(1) {
-  opacity: var(--gb-star-1-opacity);
-  transform: scale(var(--gb-star-1-scale)) translateZ(0);
-  transform-origin: 25% 14.58%;
-}
-
-.generate-button__icon path:nth-child(2) {
-  opacity: var(--gb-star-2-opacity);
-  transform: scale(var(--gb-star-2-scale)) translateZ(0);
-  transform-origin: 60.42% 50%;
-}
-
-.generate-button__icon path:nth-child(3) {
-  opacity: var(--gb-star-3-opacity);
-  transform: scale(var(--gb-star-3-scale)) translateZ(0);
-  transform-origin: 25% 85.42%;
-}
-
-.generate-button:hover:not(.generate-button--disabled) {
-  --gb-scale: 1.08;
-  --gb-shadow-wide: rgba(139, 92, 246, 0.4);
-  --gb-shadow-inset: rgba(255, 255, 255, 0.35);
-  --gb-shadow-outline: 0px;
-
-  color: #fff;
-  background-color: transparent;
-  background-image: linear-gradient(135deg, #2563EB 0%, #4F46E5 50%, #7C3AED 100%);  
-  border-color: rgba(0, 0, 0, 0.4);
-}
-
-.generate-button:hover:not(.generate-button--disabled) .generate-button__stroke-line {
-  animation: gb-stroke 2s linear infinite;
-}
-
-.generate-button:hover:not(.generate-button--disabled)::before {
-  opacity: 1;
-}
-
-.generate-button:hover:not(.generate-button--disabled) span::before {
-  opacity: 0;
-}
-
-.generate-button:hover:not(.generate-button--disabled):active {
-  --gb-scale: 1.03;
-}
-
-@keyframes gb-stroke {
-  0% { opacity: 0; }
-  25%, 75% { opacity: 1; }
-  95%, 100% { stroke-dashoffset: 6; opacity: 0; }
-}
-
-/* 카드 결제 3D 인터랙션 */
-@layer utilities {
-  .perspective-1000 {
-    perspective: 1000px;
-  }
-  .transform-style-3d {
-    transform-style: preserve-3d;
-  }
-  .backface-hidden {
-    backface-visibility: hidden;
-  }
-  .rotate-y-180 {
-    transform: rotateY(180deg);
-  }
-  .animate-card-roll-up {
-    animation: cardRollUp 0.35s cubic-bezier(0.19, 1, 0.22, 1) forwards;
-  }
-}
-
-@keyframes cardRollUp {
-  0% { transform: translateY(100%); opacity: 0; }
-  100% { transform: translateY(0); opacity: 1; }
-}
-
-/* ========================================
-   3D Tubes 커서 캔버스 레이아웃
-======================================== */
-#canvas-tubes {
-  position: fixed;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  display: block;
-  overflow: hidden;
 }
