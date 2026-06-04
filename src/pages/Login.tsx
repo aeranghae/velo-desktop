@@ -84,10 +84,10 @@ const Login: React.FC<LoginProps> = ({ onClose }) => {
 
       <div className="flex-1 bg-gradient-to-br from-blue-600 to-purple-700 p-12 flex flex-col justify-center items-center text-center relative overflow-hidden">
           <div className="absolute top-[-10%] right-[-10%] w-64 h-64 bg-white/10 rounded-full blur-3xl" />
-          <h1 className="text-4xl font-black tracking-tighter mb-6 text-[32px]">AERANGHAE</h1>
+          <h1 className="text-4xl font-black tracking-tighter mb-6 text-[32px]">VELO</h1>
           <p className="text-base opacity-90 leading-relaxed font-medium max-w-[240px]">아이디어를 실제 코드로 바꾸는 가장 스마트한 방법</p>
           <div className="mt-10 flex items-center gap-2 text-xs font-bold tracking-widest text-white/50 uppercase">
-              <Sparkles size={14} /> AI Powered Platform
+              <Sparkles size={14} /> VELO Platform
           </div>
       </div>
 
