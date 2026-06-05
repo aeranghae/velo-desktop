@@ -212,7 +212,7 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveMenu, onSelectProject })
               <h3 className="text-xl font-bold flex items-center gap-2">최근 프로젝트</h3>
               <p className="text-xs text-gray-400 mt-1">최근에 작업한 AI 설계 내역입니다.</p>
             </div>
-            <button onClick={() => setActiveMenu('create')} className="px-4 py-2 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 text-purple-300 rounded-xl text-xs font-bold transition-all duration-300 active:scale-95 shadow-[0_4px_12px_rgba(0,0,0,0.2)] cursor-pointer">
+            <button onClick={() => setActiveMenu('create')} className="px-4 py-2 bg-blue-500/10 hover:bg-blue-500/20 border border-black-500/30 text-blue-300 rounded-xl text-xs font-bold transition-all duration-300 active:scale-95 shadow-[0_4px_12px_rgba(0,0,0,0.2)] cursor-pointer">
               + 새 프로젝트 생성
             </button>
           </div>
