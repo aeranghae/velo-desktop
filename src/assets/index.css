@@ -10,19 +10,17 @@
   --radius-mac: 24px;
 }
 
-/* ========================================================
-    스크롤 잠금 해제
-======================================================== */
 html, #root {
-  min-height: 220vh !important;
-  overflow-y: auto !important;
-  overflow-x: hidden !important;
+  height: 100vh !important;
+  min-height: 100vh !important;
+  overflow: hidden !important; 
 }
 
 body {
-  min-height: 220vh !important;
-  overflow-x: hidden !important;
-  background: #07081a; /* 단색 폴백 (그라데이션은 LandingPage div에서 처리) */
+  height: 100vh !important;
+  min-height: 100vh !important;
+  overflow: hidden !important;
+  background: #07081a; 
 }
 
 :root {
@@ -35,7 +33,6 @@ body {
    로그인 화면 제외 전용 UI 컴포넌트 클래스 레이어
 ======================================================== */
 @layer components {
-  /* 하이엔드 글래스모피즘 플레이트 */
   .glass-card {
     background: rgba(255, 255, 255, 0.05);
     backdrop-filter: blur(40px);
@@ -44,7 +41,6 @@ body {
     box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
   }
 
-  /* 인풋 필드 포커싱 효과 */
   .mac-input {
     background: rgba(0, 0, 0, 0.3);
     border: 1px solid rgba(255, 255, 255, 0.1);
@@ -123,7 +119,6 @@ body {
 
 /* ========================================
     튜브 캔버스의 검정 픽셀 투명화
-   → screen 블렌드로 그라데이션이 비쳐 보이게 됨
 ======================================== */
 #canvas-tubes {
   position: fixed;
@@ -135,7 +130,6 @@ body {
   background-color: transparent !important;
 }
 
-/* R3F가 만든 canvas 강제 투명화 */
 canvas {
   background: transparent !important;
 }
@@ -291,8 +285,8 @@ canvas {
   --padding: 6px;
   --border-radius: 30px;
   --dot-size: 7px;
-  --btn-color: #121026; /* 어두운 오로라 심해 바이올렛 폴백 */
-  --hue: 265deg;         /* 오리지널 초록색(142deg)을 플랫폼 퍼플 네온 톤으로 전환 */
+  --btn-color: #121026; 
+  --hue: 265deg;         
   --animation-duration: 1.2s;
 
   position: relative;
@@ -366,7 +360,7 @@ canvas {
   border: 1px solid hsla(var(--hue), 40%, 60%, 0.5);
   box-sizing: border-box;
   box-shadow:
-    1px 1px 2px -1px rgba(255,255,255,0.2) inset,
+    1px 1px 2px -1px rgba(255, 255, 255, 0.2) inset,
     0 2px 1px rgba(0, 0, 0, 0.1),
     0 4px 2px rgba(0, 0, 0, 0.1);
   pointer-events: none;
@@ -447,8 +441,8 @@ canvas {
 .btn-wrapper:has(.btn:active) {
   box-shadow:
     1px 1px 2px 0 rgba(255,255,255,0.05),
-    2px 2px 2px rgba(0,0,0,0.2) inset,
-    2px 2px 4px rgba(0,0,0,0.2) inset,
-    2px 2px 8px rgba(0,0,0,0.2) inset,
+    2px 2px 2px rgba(0, 0, 0, 0.2) inset,
+    2px 2px 4px rgba(0, 0, 0, 0.2) inset,
+    2px 2px 8px rgba(0, 0, 0, 0.2) inset,
     0 0 32px 2px hsla(var(--hue), 50%, 50%, 0.3) inset;
 }

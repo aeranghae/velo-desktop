@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 
 interface LandingPageProps {
   onLogin: () => void;
+  onStart: () => void;
 }
 
 const TUBES_CDN_URL =
@@ -308,8 +309,8 @@ export default function LandingPage({ onLogin }: LandingPageProps) {
             <div
               className="relative w-full max-w-4xl flex flex-col items-center justify-center text-center px-12 py-24 rounded-3xl mt-12 transition-all duration-300 backdrop-blur-md"
               style={{
-                background: 'radial-gradient(circle at 50% 120%, rgba(236, 170, 246, 0.25) 0%, rgba(101, 37, 131, 0.4) 50%, rgba(30, 27, 75, 0.75) 100%)',
-                boxShadow: '0 30px 100px rgba(168, 85, 247, 0.35), inset 0 1px 1px rgba(255,255,255,0.15)',
+                background: 'radial-gradient(ellipse at 50% 120%, rgba(236, 170, 246, 0.25) 0%, rgba(101, 37, 131, 0.4) 50%, rgba(30, 27, 75, 0.75) 100%)',
+                boxShadow: '0 30px 100px rgba(168, 85, 247, 0.35), inset 0 1px 0 rgba(255,255,255,0.15)',
               }}
             >
               {/* DEVELOP 글자 분할 및 VELO 강조  */}
