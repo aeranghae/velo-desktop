@@ -187,11 +187,15 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projectUuid, generatingPr
       
       if (Array.isArray(fileListData)) {
         const combinedData = [...fileListData];
-        springEssentialBones.forEach(bone => {
-          if (!combinedData.some(item => item.path === bone.path)) {
-            combinedData.push(bone);
-          }
-        });
+        const isSpringBoot = currentFramework?.toUpperCase().includes('SPRING');
+
+        if (isSpringBoot) {
+          springEssentialBones.forEach(bone => {
+            if (!combinedData.some(item => item.path === bone.path)) {
+              combinedData.push(bone);
+            }
+          });
+        }
 
         const parsedTree = parseFlatToTree(combinedData);
         setServerFiles(parsedTree);
@@ -303,11 +307,17 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projectUuid, generatingPr
 
         if (Array.isArray(fileListData)) {
           const combinedData = [...fileListData];
-          springEssentialBones.forEach(bone => {
-            if (!combinedData.some(item => item.path === bone.path)) {
-              combinedData.push(bone);
-            }
-          });
+          
+          // 현재 설정된 프레임워크 타겟이 SPRING인지 실시간 검사
+          const isSpringBoot = currentFramework?.toUpperCase().includes('SPRING');
+
+          if (isSpringBoot) {
+            springEssentialBones.forEach(bone => {
+              if (!combinedData.some(item => item.path === bone.path)) {
+                combinedData.push(bone);
+              }
+            });
+          }
 
           const parsedTree = parseFlatToTree(combinedData);
           setServerFiles(parsedTree);
