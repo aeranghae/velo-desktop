@@ -589,43 +589,54 @@ const CreateProject: React.FC<CreateProjectProps> = ({ onGenerate }) => {
         if (current) {
           if (current.architecture_type === 'FULL_STACK' && current.recommended_stack.unified) {
             stackCards.push({
-              id: 'unified-stack', hue: 280, saturation: 70, lightness: 60,
+              id: 'unified-stack',
+              hue: 280, saturation: 70, lightness: 60,
               content: (
-                <div className="p-12 flex flex-col items-center text-center h-[340px] relative group overflow-hidden">
-                  <div className="absolute top-8 left-1/2 -translate-x-1/2 text-[9px] font-black text-purple-400 uppercase tracking-[0.3em]">
-                    Full Stack Architecture
+                <div className="w-full min-h-[380px] pt-8 pb-6 px-10 flex flex-col items-center justify-between text-center relative overflow-hidden group">
+                  
+                  {/* 1. 서브 타이틀 */}
+                  <div className="text-[13px] font-black text-purple-400 uppercase tracking-[0.34em] shrink-0 mb-2">
+                    Full Stack Recommendation
                   </div>
-                  <div className="w-24 h-24 bg-purple-500/10 rounded-[32px] flex items-center justify-center text-purple-400 mb-6 mt-6 border border-purple-500/20 shrink-0">
+                  
+                  {/* 2. 아이콘 크기 고정 및 마진 최적화 */}
+                  <div className="w-22 h-22 bg-purple-500/10 rounded-[28px] flex items-center justify-center text-purple-400 border border-purple-500/20 shrink-0 my-2">
                     <Sparkles size={44} />
                   </div>
-                  <h4 className="text-3xl font-black mb-3 tracking-tighter italic uppercase text-white shrink-0">
+                  
+                  {/* 3. 메인 스택 이름 */}
+                  <h4 className="text-4xl font-black tracking-tight italic uppercase text-white shrink-0 my-1">
                     {current.recommended_stack.unified.name}
                   </h4>
-                  <div className="flex-grow w-full overflow-y-auto custom-scrollbar px-2 text-left">
-                    <p className="text-xs text-gray-400 leading-relaxed font-medium">
+                  
+                  {/* 4. 가로로 넓게 펼쳐진 설명란 */}
+                  <div className="w-full max-w-3xl px-6 flex-1 flex items-center justify-center min-h-0 mt-3">
+                    <p className="text-[13px] text-gray-400 leading-relaxed font-medium break-keep text-center">
                       "{current.recommended_stack.unified.reason}"
                     </p>
                   </div>
+                  
                 </div>
               ),
             });
           } else {
             if (current.recommended_stack.backend) {
               stackCards.push({
-                id: 'backend-stack', hue: 210, saturation: 80, lightness: 55,
+                id: 'backend-stack',
+                hue: 210, saturation: 80, lightness: 55,
                 content: (
-                  <div className="p-10 flex flex-col items-center text-center h-[340px] relative overflow-hidden">
-                    <div className="absolute top-8 left-1/2 -translate-x-1/2 text-[9px] font-black text-blue-400 uppercase tracking-[0.3em]">
-                      Backend
+                  <div className="w-full min-h-[380px] pt-8 pb-6 px-10 flex flex-col items-center justify-between text-center relative overflow-hidden">
+                    <div className="text-[13px] font-black text-blue-400 uppercase tracking-[0.34em] shrink-0 mb-2">
+                      Backend Recommendation
                     </div>
-                    <div className="w-20 h-20 bg-blue-500/10 rounded-[28px] flex items-center justify-center text-blue-400 mb-6 mt-6 border border-blue-500/20 shrink-0">
-                      <Server size={36} />
+                    <div className="w-22 h-22 bg-blue-500/10 rounded-[28px] flex items-center justify-center text-blue-400 border border-blue-500/20 shrink-0 my-2">
+                      <Server size={40} />
                     </div>
-                    <h4 className="text-2xl font-black mb-2 italic uppercase text-white shrink-0">
+                    <h4 className="text-3xl font-black italic uppercase text-white shrink-0 my-1">
                       {current.recommended_stack.backend.name}
                     </h4>
-                    <div className="flex-grow w-full overflow-y-auto custom-scrollbar px-2 text-left">
-                      <p className="text-[11px] text-gray-400 leading-relaxed font-medium">
+                    <div className="w-full max-w-3xl px-6 flex-1 flex items-center justify-center min-h-0 mt-3">
+                      <p className="text-[12px] text-gray-400 leading-relaxed font-medium break-keep text-center">
                         "{current.recommended_stack.backend.reason}"
                       </p>
                     </div>
@@ -635,20 +646,21 @@ const CreateProject: React.FC<CreateProjectProps> = ({ onGenerate }) => {
             }
             if (current.recommended_stack.frontend) {
               stackCards.push({
-                id: 'frontend-stack', hue: 180, saturation: 80, lightness: 50,
+                id: 'frontend-stack',
+                hue: 180, saturation: 80, lightness: 50,
                 content: (
-                  <div className="p-10 flex flex-col items-center text-center h-[340px] relative overflow-hidden">
-                    <div className="absolute top-8 left-1/2 -translate-x-1/2 text-[9px] font-black text-cyan-400 uppercase tracking-[0.3em]">
-                      Frontend
+                  <div className="w-full min-h-[380px] pt-8 pb-6 px-10 flex flex-col items-center justify-between text-center relative overflow-hidden">
+                    <div className="text-[13px] font-black text-cyan-400 uppercase tracking-[0.34em] shrink-0 mb-2">
+                      Frontend Recommendation
                     </div>
-                    <div className="w-20 h-20 bg-cyan-500/10 rounded-[28px] flex items-center justify-center text-cyan-400 mb-6 mt-6 border border-cyan-500/20 shrink-0">
-                      <Globe size={36} />
+                    <div className="w-22 h-22 bg-cyan-500/10 rounded-[28px] flex items-center justify-center text-cyan-400 border border-cyan-500/20 shrink-0 my-2">
+                      <Globe size={40} />
                     </div>
-                    <h4 className="text-2xl font-black mb-2 italic uppercase text-white shrink-0">
+                    <h4 className="text-3xl font-black italic uppercase text-white shrink-0 my-1">
                       {current.recommended_stack.frontend.name}
                     </h4>
-                    <div className="flex-grow w-full overflow-y-auto custom-scrollbar px-2 text-left">
-                      <p className="text-[11px] text-gray-400 leading-relaxed font-medium">
+                    <div className="w-full max-w-3xl px-6 flex-1 flex items-center justify-center min-h-0 mt-3">
+                      <p className="text-[12px] text-gray-400 leading-relaxed font-medium break-keep text-center">
                         "{current.recommended_stack.frontend.reason}"
                       </p>
                     </div>
@@ -660,27 +672,35 @@ const CreateProject: React.FC<CreateProjectProps> = ({ onGenerate }) => {
         }
 
         return (
-          <div className="flex flex-col h-full animate-in fade-in slide-in-from-right-8 duration-500">
-            <div className="mb-45 text-center shrink-0">
-              <h3 className={`text-[11px] font-black uppercase tracking-[0.4em] mb-2 ${current?.architecture_type === 'FULL_STACK' ? 'text-purple-400' : 'text-blue-400'}`}>
-                {current?.architecture_type === 'FULL_STACK' ? 'Full Stack Recommendation' : 'Single Component Selection'}
-              </h3>
-              <p className="text-gray-400 text-xs italic font-semibold">프로젝트 성격에 최적화된 아키텍처 스택입니다.</p>
+          <div className="flex flex-col h-full justify-start pt-0 pb-24 -mt-7">
+            
+            {/* 상단 안내 문구 */}
+            <div className="text-center shrink-0 pt-0 mb-4">
+              <p className="text-gray-500 text-xs italic font-medium">아키텍처 분석 결과에 따른 추천 스택 세부 정보입니다.</p>
             </div>
-            <div className="flex-1 flex items-center justify-center max-w-5xl mx-auto w-full min-h-0">
-              <SpotlightCardGroup cards={stackCards} />
+
+            {/* 메인 와이드 카드 영역 */}
+            <div className="flex-none flex items-center justify-center max-w-5xl mx-auto w-full py-1 mb-4">
+              {stackCards.length > 0 ? (
+                <SpotlightCardGroup 
+                  cards={stackCards} 
+                  cardClassName="!max-w-3xl !flex-none w-full" 
+                />
+              ) : (
+                <p className="text-gray-500 text-sm">추천 스택 데이터가 없습니다.</p>
+              )}
             </div>
-            <div className="mt-50 mb-0 bg-white/[0.04] backdrop-blur-xl border border-white/10 rounded-3xl p-4 flex items-center gap-4 max-w-4xl mx-auto w-full shrink-0 shadow-md">
-              <div className="p-2 bg-blue-500/20 border border-blue-500/10 rounded-lg text-blue-400 shrink-0">
-                <Info size={14} />
-              </div>
-              <p className="text-[12px] text-gray-300 leading-relaxed font-semibold">
-                {current?.architecture_type === 'FULL_STACK'
-                  ? "백엔드와 프론트엔드가 모두 포함된 완전한 웹 애플리케이션 구조입니다."
-                  : "서버 또는 클라이언트 단일 컴포넌트로 구성된 독립 프로젝트입니다."
-                }
+
+            {/*  하단 팁 바 박스 */}
+            <div className="mt-0 -mt-3 mb-16 bg-white/5 border border-white/5 rounded-3xl p-4 flex items-center gap-4 max-w-4xl mx-auto w-full shrink-0">
+              <div className="p-2 bg-blue-500/20 rounded-lg text-blue-400 shrink-0"><Info size={14}/></div>
+              <p className="text-[12px] text-gray-400 leading-relaxed font-medium">
+                {current?.architecture_type === 'FULL_STACK' 
+                  ? "백엔드와 프론트엔드가 모두 포함된 완전한 웹 애플리케이션 구조입니다." 
+                  : "서버 또는 클라이언트 단일 컴포넌트로 구성된 독립 프로젝트입니다."}
               </p>
             </div>
+
           </div>
         );
       }

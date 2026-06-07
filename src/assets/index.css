@@ -446,3 +446,248 @@ canvas {
     2px 2px 8px rgba(0, 0, 0, 0.2) inset,
     0 0 32px 2px hsla(var(--hue), 50%, 50%, 0.3) inset;
 }
+
+/* ========================================================
+   4. [복원 및 레이아웃 보정] 스포트라이트 카드 인터랙션 효과 
+======================================================== */
+.spotlight-cards {
+  position: relative;
+  width: 100%;
+}
+
+.spotlight-cards__inner,
+.spotlight-overlay {
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  gap: 40px;
+  width: 100%;
+}
+
+.spotlight-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  user-select: none;
+  z-index: 2;
+  opacity: var(--opacity, 0);
+  transition: opacity 0.4s ease;
+}
+
+/* 카드가 내부 컨텐츠 길이에 맞추어 유연하게 늘어나도록 flex 및 height 보정 */
+.spotlight-card {
+  --hsl: var(--hue), var(--saturation, 90%), var(--lightness, 55%);
+  position: relative;
+  width: 100%;
+  border-radius: 48px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background-color: rgba(255, 255, 255, 0.04);
+  transition: background 400ms ease;
+  will-change: background;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.spotlight-card:hover {
+  background: hsla(var(--hsl), 0.05);
+}
+
+.spotlight-overlay .spotlight-card {
+  height: 100%; /* 원본 카드와 오버레이 카드의 높이를 강제 일치시킵니다 */
+}
+
+.spotlight-card--overlay {
+  background-color: hsla(var(--hsl), 0.12) !important;
+  border-color: hsl(var(--hsl)) !important;
+  box-shadow: 0 0 0 1px inset hsl(var(--hsl)),
+              0 0 40px hsla(var(--hsl), 0.25);
+  -webkit-mask: radial-gradient(
+    var(--spotlight-radius, 25rem) var(--spotlight-radius, 25rem) at var(--x) var(--y),
+    #000 1%,
+    transparent 60%
+  );
+  mask: radial-gradient(
+    var(--spotlight-radius, 25rem) var(--spotlight-radius, 25rem) at var(--x) var(--y),
+    #000 1%,
+    transparent 60%
+  );
+}
+
+/* ========================================================
+   5.Generate Button - 정밀 시그니처 애니메이션 셋업
+======================================================== */
+.generate-button {
+  --gb-star-1-opacity: 0.25;
+  --gb-star-1-scale: 1;
+  --gb-star-2-opacity: 1;
+  --gb-star-2-scale: 1;
+  --gb-star-3-opacity: 0.5;
+  --gb-star-3-scale: 1;
+  --gb-dots-opacity: 0;
+  --gb-scale: 1;
+  --gb-shadow-wide: transparent;
+  --gb-shadow-inset: rgba(255, 255, 255, 0.04);
+  --gb-shadow-outline: 0px;
+
+  appearance: none;
+  outline: none;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 16px 32px 16px 22px;
+  border-radius: 16px;
+  margin: 0;
+  background-color: #1A1A1E;
+  background-image: none;             
+  color: #6B7280;
+  min-width: 220px;
+  display: flex;
+  align-items: center;
+  position: relative;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  z-index: 10;
+  transform: scale(var(--gb-scale)) translateZ(0);
+  box-shadow:
+    0px 0px 120px var(--gb-shadow-wide),
+    0px 4px 12px rgba(0, 0, 0, 0.1),
+    0px 1px 2px rgba(0, 0, 0, 0.15),
+    inset 0px 1px 1px var(--gb-shadow-inset),
+    0 0 0 var(--gb-shadow-outline) rgba(139, 92, 246, 0.4);
+  transition: transform 0.3s, background-color 0.3s, background-image 0.3s, box-shadow 0.3s, color 0.3s;
+}
+
+.generate-button--disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.generate-button::before {
+  content: '';
+  display: block;
+  position: absolute;
+  right: 20%;
+  height: 20px;
+  left: 20%;
+  bottom: -10px;
+  background: linear-gradient(to right, #93C5FD, #D8B4FE);   
+  filter: blur(12.5px);
+  z-index: 2;
+  clip-path: inset(-200% -30% 10px -30% round 16px);
+  opacity: 0;
+  transition: opacity 0.4s;
+  transform: translateZ(0);
+  pointer-events: none;
+}
+
+.generate-button span {
+  position: relative;
+  z-index: 1;
+  font-weight: 900;
+  font-size: 13px;
+  line-height: 26px;
+  letter-spacing: 0.15em;
+  display: block;
+  text-transform: uppercase;
+}
+
+.generate-button span::before {
+  content: '';
+  background-color: transparent;
+  background-image: linear-gradient(to right, transparent, #1A1A1E);
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0.4;
+  transition: opacity 0.4s;
+}
+
+.generate-button__stroke {
+  mix-blend-mode: hard-light;
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.generate-button__stroke-line {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke-width: 0.75px;
+  stroke: #DDD6FE;                     
+  stroke-dasharray: 1.5 14;
+  stroke-dashoffset: 22;
+  opacity: 0;
+}
+
+.generate-button__stroke-line:nth-child(2) {
+  stroke-width: 1px;
+  stroke-opacity: 0.5;
+  filter: blur(3px);
+}
+
+.generate-button__dots {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 10;
+  fill: #C4B5FD;                       
+  opacity: var(--gb-dots-opacity);
+  overflow: visible;
+  pointer-events: none;
+}
+
+.generate-button__icon {
+  width: 22px;
+  height: 24px;
+  margin-right: 12px;
+  fill: currentColor;
+  flex-shrink: 0;
+}
+
+.generate-button__icon path:nth-child(1) {
+  opacity: var(--gb-star-1-opacity);
+  transform: scale(var(--gb-star-1-scale)) translateZ(0);
+  transform-origin: 25% 14.58%;
+}
+
+.generate-button__icon path:nth-child(2) {
+  opacity: var(--gb-star-2-opacity);
+  transform: scale(var(--gb-star-2-scale)) translateZ(0);
+  transform-origin: 60.42% 50%;
+}
+
+.generate-button__icon path:nth-child(3) {
+  opacity: var(--gb-star-3-opacity);
+  transform: scale(var(--gb-star-3-scale)) translateZ(0);
+  transform-origin: 25% 85.42%;
+}
+
+.generate-button:hover:not(.generate-button--disabled) {
+  --gb-scale: 1.08;
+  --gb-shadow-wide: rgba(139, 92, 246, 0.4);
+  --gb-shadow-inset: rgba(255, 255, 255, 0.35);
+  --gb-shadow-outline: 0px;
+  color: #fff;
+  background-color: transparent;
+  background-image: linear-gradient(135deg, #2563EB 0%, #4F46E5 50%, #7C3AED 100%);  
+  border-color: rgba(0, 0, 0, 0.4);
+}
+
+.generate-button:hover:not(.generate-button--disabled) .generate-button__stroke-line {
+  animation: gb-stroke 2s linear infinite;
+}
+
+.generate-button:hover:not(.generate-button--disabled)::before { opacity: 1; }
+.generate-button:hover:not(.generate-button--disabled) span::before { opacity: 0; }
+.generate-button:hover:not(.generate-button--disabled):active { --gb-scale: 1.03; }
+
+@keyframes gb-stroke {
+  0% { opacity: 0; }
+  25%, 75% { opacity: 1; }
+  95%, 100% { stroke-dashoffset: 6; opacity: 0; }
+}
